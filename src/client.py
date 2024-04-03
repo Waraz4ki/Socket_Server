@@ -1,18 +1,20 @@
-import sys
-import os
-
 import logging
 import socket
 import json
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
+
 PORT = 60_000
 HOST = "127.0.0.1"
 
-def connect(host=str, port=int):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((HOST, PORT))
-        while True:
-            raw = input(">>>")
-            s.send(raw.encode())
+class Socketclient:
+    def __init__(self) -> None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((HOST, PORT))
+            while True:
+                
+                raw = input(">>>")
+                s.send(raw.encode())
 
-connect(HOST, PORT)
+client = Socketclient()
