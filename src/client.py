@@ -9,12 +9,12 @@ PORT = 60_000
 HOST = "127.0.0.1"
 
 class Socketclient:
-    def __init__(self) -> None:
+    def __init__(self, host, port) -> None:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((HOST, PORT))
+            s.connect((host, port))
             while True:
                 
                 raw = input(">>>")
                 s.send(raw.encode())
 
-client = Socketclient()
+client = Socketclient(HOST, PORT)
