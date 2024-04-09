@@ -5,8 +5,7 @@ import multiprocessing as mp
 import hashlib
 import logging
 import socket
-import socketserver
-import json
+
 
 SERVER_NAME = "example"
 
@@ -21,61 +20,51 @@ class Socketserver:
     __safe = True
     
     def __init__(self, host=str, port=int):
-        try:
-            with socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM) as self.server:
-                self.server.bind((host, port))
-                self.server.listen()
-
-                print(f"Server started awaiting connection...")
-                logger.info(f"Server started at {host} awaiting connection on port {port}")
-
-                while self.__keep_alive:
-                    self.conn, self.addr = self.server.accept()
-
-                    print(f"Connection from {self.addr}")
-                    logger.info(f"Connection from {self.addr}")
-
-                    p = mp.Process(target=self.serve_connection, name=f"{self.addr[0]}")
-                    p.start()
-                    
-        except Exception:
-            self.__keep_alive = True
-            self.server.close()
-            logger.warning(f"Server has encountered unexpected error {Exception}")
+        self.host = host
+        self.port = port
+        
+        self.server = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        self.server.bind((host,port))
+        self.server.listen()
     
-
+    def serve_forever(self):
+        print(f"Server started awaiting connection...")
+        logger.info(f"Server started at {self.host} awaiting connection on port {self.port}")
+        
+        while self.__keep_alive:
+            self.conn, self.addr = self.server.accept()
+            
+            p = mp.Process(target=self.serve_connection, name=f"{self.addr[0]}")
+            p.start()
+        
     def serve_connection(self):
-        self.__sever_connection_request = False
+        connection = True
         
         print(f"Connection to {self.addr} established succesfully")
         logger.info(f"Connection to {self.addr} established succesfully")
-        while self.__safe:
+        while connection:
             try:
                 pass
             except ConnectionResetError:
                 logger.warning(f"Connection {self.addr} has unexpectadly disconnected")
                 break
+        logger.info(f"{self.addr} has disconnected")
             
-    
-#    def verify_connection(self):
-#        try:
-#            pwrd = hashlib.sha256(self.server.recv(1026), usedforsecurity=True)
-#            if pwrd == hashlib.sha256(PAS, usedforsecurity=True):
-#                self.__safe__ = True
-#        except:
-#            pass
-    
-        
-    def sever_connection(self):
+            
+    def stop_connection(self, ip):
         for process in mp.active_children():
-            print(process)
-        
-        ##return self.__sever_connection_request
+            if process.name == ip:
+                process.close()
 
-    def sever_all(self):
-        self.__safe = False
+
+    def stop_all(self):
+        pass
     
     
+    def shutdown_request(self, requester):
+        logger.info(f"{requester} sent a request to shut down server")
+        
+        
     def shutdown(self):
         """Stop Main Server loop
         
@@ -83,7 +72,7 @@ class Socketserver:
         """
         self.__keep_alive = False
         
-         
-    
+
 if __name__ == "__main__":
     Server = Socketserver(HOST, PORT)
+    Server.serve_forever()
