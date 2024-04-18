@@ -29,7 +29,7 @@ __________                        ______________
     
 """
 
-class Socketserver:
+class Socketserver(Handler):
     __keep_alive = True
     
     def __init__(self, host=str, port=int):
@@ -63,31 +63,33 @@ class Socketserver:
         print(f"Connection to {addr} established succesfully in {threading.current_thread()}")
         logger.info(f"Connection to {addr} established succesfully in {threading.current_thread()}")
         
-        handler = self.get_handler(conn=conn, addr=addr)
-        h = Handler(purpose=handler)
+        
+        conn.send(b"Gime")
+        handler_post = conn.recv(75).decode()
+        handler = self.get_handler(purpose=handler_post)
         
         while True:
             try:
                 raw = conn.recv(12312)
-                h.init(raw.decode())
+                self.handle(handler=handler, data=raw.decode())
                 
             except ConnectionResetError:
                 logger.warning(f"Connection {addr} has unexpectadly disconnected")
-                break            
+                break
     
-    def get_handler(self, conn, addr):
-        """Request way to handle sent items
-
-        Args:
-            conn (socket): socket obj
-            addr (_RetAddress): address of the connected machine
-
-        Returns a string containing the way to handle the items sent
-        """
-        conn.send(b"Gime")
-        handler = conn.recv(75).decode()
-        
-        return handler
+    #def get_handler(self, conn, addr):
+    #    """Request way to handle sent items
+    #
+    #    Args:
+    #        conn (socket): socket obj
+    #        addr (_RetAddress): address of the connected machine
+    #
+    #    Returns a string containing the way to handle the items sent
+    #    """
+    #    conn.send(b"Gime")
+    #    handler = conn.recv(75).decode()
+    #    
+    #    return handler
     
     def stop_worker(self, ip):
         for process in mp.active_children():
