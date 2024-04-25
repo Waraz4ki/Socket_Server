@@ -3,8 +3,9 @@ import multiprocessing as mp
 
 import logging
 import socket
+import json
 
-from handler import Handler
+#from handler import Serverhandler
 
 SERVER_NAME = "example"
 
@@ -29,15 +30,16 @@ __________                        ______________
     
 """
 
-class Socketserver(Handler):
+class SocketServer():
     __keep_alive = True
     
-    def __init__(self, host=str, port=int):
+    def __init__(self, host=str, port=int, Handler=object):
         self.host = host
         self.port = port
+        self.Handler = Handler
 
         self.server = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-        self.server.bind((host,port))
+        self.server.bind((host, port))
         self.server.listen()
         
         Comm_port = mp.Process(target=self.serve_forever, name="Comm-port")
@@ -55,42 +57,35 @@ class Socketserver(Handler):
             
     def serve_connection(self, conn, addr):
         """Serve a single Connection
-
-        Args:
-            conn (_type_): _description_
-            addr (_type_): _description_
         """
         print(f"Connection to {addr} established succesfully in {threading.current_thread()}")
         logger.info(f"Connection to {addr} established succesfully in {threading.current_thread()}")
         
-        
-        conn.send(b"Gime")
-        handler_post = conn.recv(75).decode()
-        handler = self.get_handler(purpose=handler_post)
+        request = conn.recv(1000)
+        handler = self.process_handle(request)
         
         while True:
             try:
-                raw = conn.recv(12312)
-                self.handle(handler=handler, data=raw.decode())
+                raw = conn.recv(120)
+                self.handle_request(raw, handler)
                 
             except ConnectionResetError:
                 logger.warning(f"Connection {addr} has unexpectadly disconnected")
                 break
     
-    #def get_handler(self, conn, addr):
-    #    """Request way to handle sent items
-    #
-    #    Args:
-    #        conn (socket): socket obj
-    #        addr (_RetAddress): address of the connected machine
-    #
-    #    Returns a string containing the way to handle the items sent
-    #    """
-    #    conn.send(b"Gime")
-    #    handler = conn.recv(75).decode()
-    #    
-    #    return handler
+    def process_handle(self, request):
+        try:
+            func = getattr(self.Handler, request.decode())
+            return func
+            
+        except AttributeError:
+            #! Kill connection here
+            print("efau")
+            return None
     
+    def handle_request(self, raw, handler):
+        handler(data=raw)
+        
     def stop_worker(self, ip):
         for process in mp.active_children():
             if process.name == ip:
@@ -109,6 +104,3 @@ class Socketserver(Handler):
         """
         self.__keep_alive = False
         
-
-if __name__ == "__main__":
-    Server = Socketserver(HOST, PORT)

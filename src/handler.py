@@ -1,37 +1,17 @@
 import logging
 
-class Handler:
+class BaseHandler:
     def __init__(self) -> None:
+        """Your Client will need to send forms with the respective function name for now and include no "self" parameter
         """
-        Select preprogrammed handler
-        """
-    
-    def get_handler(self, purpose):
-        """Request way to handle sent items
-    
-        Args:
-            conn (socket): socket obj
-            addr (_RetAddress): address of the connected machine
-    
-        Returns a string containing the way to handle the items sent
-        """
-        handle_methodes = {
-            "chat": self.chathandle,
-            "coordinates" : self.locationhandle,
-        }
-        handler = handle_methodes.get(purpose)
+        pass
         
-        return handler
-    
     def handle(self, handler, data):
         """
         Run Handle Method
-        """
-        
-        handler(data=data)
+        """        
+        return handler(data=data)
     
-    def chathandle(self, data):
-        print(data)
-    
-    def locationhandle(self, data):
-        print("loc")
+if __name__ == "__main__":
+    d = BaseHandler()
+    d.__test_handle__("chat")
