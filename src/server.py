@@ -46,8 +46,10 @@ class SocketServer():
         self.server.bind((self.host, self.port))
         self.server.listen()
         
-        d = threading.Thread(target=self.serve_forever)
-        d.start()
+        comm = mp.Process(target=self.serve_forever)
+        comm.start()
+        #d = threading.Thread(target=self.serve_forever)
+        #d.start()
     
     def serve_forever(self):
         print(f"Server started awaiting connection...")
@@ -58,8 +60,10 @@ class SocketServer():
             
             try:
                 Worker = threading.Thread(target=self.serve_connection, args=(conn, addr))
-                Worker.run()
+                Worker.start()
+                #Worker.run()
             except TimeoutError:
+                print("even")
                 pass
                         
     def serve_connection(self, conn, addr):
