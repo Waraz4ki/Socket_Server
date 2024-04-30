@@ -46,7 +46,6 @@ class SocketServer():
         
         d = threading.Thread(target=self.serve_forever)
         d.start()
-        #self.serve_forever()
     
     def serve_forever(self):
         print(f"Server started awaiting connection...")
@@ -90,6 +89,7 @@ class SocketServer():
                 break
         logger.warning(f"{addr} has been severed succesfully")
     
+    
     def process_handle(self, request):
         try:
             func = getattr(self.Handler, request.decode())
@@ -98,6 +98,7 @@ class SocketServer():
         except AttributeError:
             #! Kill connection here
             return None
+    
     
     def stop_worker(self, ip):
         for process in mp.active_children():

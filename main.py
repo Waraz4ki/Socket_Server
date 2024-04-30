@@ -11,7 +11,7 @@ class TestHandle(BaseHandler):
     def __init__(self) -> None:
         super().__init__()
         
-    def test(data):
+    def test(self, data):
         print(data)
 
 if __name__ == "__main__":
