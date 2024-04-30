@@ -56,7 +56,9 @@ docs/_build/
 # PyBuilder
 target/
 
+# Other
 .venv
 req.txt
-protocol.py
+/test
+
 

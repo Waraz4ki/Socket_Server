@@ -26,7 +26,6 @@ class Socketclient:
         self.on_connect(form)
         
         while True:
-            
             raw = input(">>>")
             self.connection.send(raw.encode())
     

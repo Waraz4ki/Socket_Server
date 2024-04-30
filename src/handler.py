@@ -14,4 +14,3 @@ class BaseHandler:
     
 if __name__ == "__main__":
     d = BaseHandler()
-    d.__test_handle__("chat")
