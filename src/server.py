@@ -12,7 +12,9 @@ SERVER_NAME = "example"
 
 logger = logging.getLogger(name=SERVER_NAME)
 logging.basicConfig(filename=f"{SERVER_NAME}.log", encoding='utf-8', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
-
+    
+PORT = 60_000
+HOST = "192.168.178.108"
 
 """Two Part Server
 
