@@ -60,5 +60,6 @@ target/
 .venv
 req.txt
 /test
+node_modules
 
 
