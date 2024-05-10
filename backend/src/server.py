@@ -82,7 +82,6 @@ class SocketServer():
                 if not request:
                     continue
                 
-                path = r"C:\Users\moritz\Documents\IT\Server-Client\backend\data"
                 try:
                     self.RequestHandler(request, conn, self.server, path)
                 except ValueError:
