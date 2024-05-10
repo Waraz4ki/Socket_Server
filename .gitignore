@@ -61,5 +61,6 @@ target/
 req.txt
 /test
 node_modules
+data
 
 

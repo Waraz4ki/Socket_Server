@@ -1,10 +1,10 @@
 import threading
 import multiprocessing as mp
 import os
-
 import logging
 import socket
 import json
+
 
 SERVER_NAME = "example"
 
@@ -76,24 +76,18 @@ class SocketServer():
         print(f"Connection to {addr} established succesfully in {threading.current_thread().name}")
         logger.info(f"Connection to {addr} established succesfully in {threading.current_thread().name}")
         
-        #handler = self.process_handle(request)
-        
-        #if handler is None:
-        #    logger.warning(f"{addr}({threading.Thread.name}) has failed to provide existing handler, severing connection")
-        #    conn.send(404)
-        #    __keep_alive = False
-        
         while __keep_alive:
             try:
                 request = conn.recv(120)
                 if not request:
                     continue
                 
-                #try:
-                self.RequestHandler(request, conn, self.server)
-                #except ValueError:
-                #    logger.warn(f"ValueError")
-                #    conn.close()
+                path = r"C:\Users\moritz\Documents\IT\Server-Client\backend\data"
+                try:
+                    self.RequestHandler(request, conn, self.server, path)
+                except ValueError:
+                    logger.warn(f"ValueError")
+                    conn.close()
                 
             except ConnectionResetError:
                 logger.warning(f"Connection {addr} has unexpectadly disconnected")
@@ -103,7 +97,6 @@ class SocketServer():
         print(f"{addr} has been severed succesfully")
         logger.warning(f"{addr} has been severed succesfully")
     
-    
     def process_handle(self, request):
         try:
             func = getattr(self.RequestHandler, request.decode())
@@ -111,7 +104,6 @@ class SocketServer():
             
         except AttributeError:
             return None
-    
     
     def stop_worker(self):
         pass
@@ -124,11 +116,13 @@ class SocketServer():
         self.__serve = False
 
 
+
 class BaseHandler:
-    def __init__(self, request, conn, server):
+    def __init__(self, request, conn, server, *args):
         self.request = request
         self.conn = conn
         self.server = server
+        self.args = args
         self.setup()
         try:
             self.handle()
@@ -144,6 +138,7 @@ class BaseHandler:
     def finish(self):
         pass
 
+
 class ChatHandler(BaseHandler):
     def setup(self):
         pass
@@ -155,30 +150,31 @@ class ChatHandler(BaseHandler):
         else:
             self.conn.send(b"da")
 
+
 class FileTransferHandler(BaseHandler):
-    def __init__(self, request, conn, server, destination_path=str):
-        self.path = destination_path
-        super().__init__(request, conn, server)
+    #def __init__(self, request=None, conn=object, server=list):
+    #    super().__init__(request, conn, server)
     
     if hasattr(socket, "recvmsg"):
         def setup(self):
-            self.floder, self.name = self.conn.recvmsg(10, 1000)
+            pass
     else:
         def setup(self):
-            self.floder, self.name = self.request.decode().split(":", 1)
+            self.base_destination_path = self.args[0]
+            self.path = self.request.decode()
     
     def handle(self):
-        if self.floder == "Folder":
-            try:
-                os.mkdir(path=r""+{self.path}+"\"+{self.name}")
-            except PermissionError:
-                pass
-        elif self.floder == "File":
-            try:
-                with open(file=self.name, mode="w+") as file:
+        try:
+            if self.path.split(".")[1]:
+                with open(file=os.path.join(self.base_destination_path, self.path), mode="w+", newline="") as file:
                     content = self.conn.recv(100000000)
                     file.write(content.decode())
-            except PermissionError:
-                pass
+        except IndexError:
+            merge = os.path.join(self.base_destination_path, self.path)
+            os.makedirs(name=merge)
+        except PermissionError:
+            logger.warn("No permission, canceling...")
+            
+        self.path = None
                     
             

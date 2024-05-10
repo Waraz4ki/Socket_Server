@@ -38,3 +38,20 @@ def cylcedir(path):
         elif dir.is_file():
             print(f"File: {dir.name}")
             time.sleep(1)
+            
+    def loop(self, path):
+        for dir in os.scandir(path):
+            if dir.is_dir():
+                print(f"Folder:{dir.name}")
+                self.conn.send(b"Folder:"+dir.name.encode())
+                
+                self.loop(dir.path)
+                
+            elif dir.is_file():
+                print(f"File:{dir.name}")
+                self.conn.send(b"File:"+dir.name.encode())
+                
+                time.sleep(1)
+                
+                with open(file=dir, mode="rb") as file:
+                    self.conn.sendfile(file)

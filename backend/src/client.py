@@ -1,13 +1,7 @@
 import logging
 import socket
 import time
-
 import os
-import json
-
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
 
 
 class Socketclient:
@@ -23,18 +17,9 @@ class Socketclient:
             self.connection.connect((self.host, self.port))
         except ConnectionRefusedError:
             print("No Server is running")
-        #self.on_connect(form)
-        
         while True:
             raw = input(">>>")
             self.Protocol(raw, self.connection)
-    
-    #def on_connect(self, form):
-    #    self.send_form(form)
-    #        
-    #def send_form(self, form):
-    #    self.connection.send(form)
-    #    pass
 
 
 class BaseProtocol:
@@ -46,13 +31,11 @@ class BaseProtocol:
             self.handle()
         finally:
             self.finish()
-
+            
     def setup(self):
         pass
-
     def handle(self):
         pass
-
     def finish(self):
         pass
 
@@ -60,27 +43,33 @@ class ChatProtocol(BaseProtocol):
     def handle(self):
         self.conn.send(self.inp.encode())
    
-class FileTransferProtocol(BaseProtocol):
+class FFTProtocol(BaseProtocol):
     def setup(self):
-        self.directory = r"C:\Users\moritz\Documents\Powi Script"
+        self.ld = len(self.inp.split("\\"))-1
     
     def handle(self):
-        self.loop(self.directory)
+        self.loop2(self.inp)
     
-    def loop(self, path):
-        for dir in os.scandir(path):
+    def loop2(self, og_path):
+        for dir in os.scandir(og_path):
             if dir.is_dir():
-                print(f"Folder:{dir.name}")
-                self.conn.send(b"Folder:"+dir.name.encode())
+                new = dir.path.split("\\")
                 
-                self.loop(dir.path)
+                for i in range(self.ld):
+                    del new[0]
+                
+                self.conn.send(os.path.join(*new).encode())
+                time.sleep(.1)
+                self.loop2(dir.path)
                 
             elif dir.is_file():
-                print(f"File:{dir.name}")
-                self.conn.send(b"File:"+dir.name.encode())
+                new = dir.path.split("\\")
                 
-                time.sleep(5)
+                for i in range(self.ld):
+                    del new[0]
                 
+                self.conn.send(os.path.join(*new).encode())
+                time.sleep(.1)
                 with open(file=dir, mode="rb") as file:
                     self.conn.sendfile(file)
 
@@ -88,7 +77,7 @@ class FileTransferProtocol(BaseProtocol):
 PORT = 60_000
 HOST = "192.168.178.108"
 
-client = Socketclient(HOST, PORT, FileTransferProtocol)
+client = Socketclient(HOST, PORT, FFTProtocol)
 client.connect()
 
 
