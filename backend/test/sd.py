@@ -1,6 +1,7 @@
 import os 
+from pathlib import Path
 
-ga = "adfafw:2132"
-floder, name = ga.split(":", 1)
+d = b"wd:::wo948g"
 
-os.makedirs(r"C:\Users\moritz\Documents\IT\Server-Client\backend\data\New folder\adawda")
+print(d.split(b":::"))
+
