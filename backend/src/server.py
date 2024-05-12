@@ -88,7 +88,6 @@ class SocketServer():
             try:
                 request = recvall(conn, 1024)
                 
-                path = r"C:\Users\moritz\Documents\IT\Server-Client\backend\data"
                 self.RequestHandler(request, conn, self.server, path)
                 
             except ConnectionResetError:
