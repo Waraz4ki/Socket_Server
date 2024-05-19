@@ -4,8 +4,9 @@ import os
 import logging
 import socket
 import json
-import zmq
+import time
 
+from backend.src.util import sure_send, recvall 
 
 SERVER_NAME = "example"
 
@@ -25,15 +26,6 @@ __________                        ______________
  Command
 """
 
-def recvall(conn, buffsize=None) -> bytes:
-    package = conn.recv(100_000_000)
-    package_size = package.split(b":::")[0]
-    package = package.removeprefix(package_size + b":::")
-    
-    while len(package) != int(package_size):
-        package.__add__(conn.recv(100_000_000))
-        
-    return package
 
 class SocketServer():
     __serve = True
@@ -88,6 +80,7 @@ class SocketServer():
             try:
                 request = recvall(conn, 1024)
                 
+                path = r"C:\Users\moritz\Documents\IT\Server-Client\backend\data"
                 self.RequestHandler(request, conn, self.server, path)
                 
             except ConnectionResetError:
@@ -134,24 +127,23 @@ class FileTransferHandlerNew(BaseHandler):
     def setup(self):
         self.base_destination_path = self.args[0]
         self.r = self.request.split(b":::::")
-        print(len(self.r))
-        #print(self.r[0].decode())
-        #self.floder, self.content = self.request.split(b":")
         
     def handle(self):
         if self.r[0].decode() == "Folder":
             dest_path = os.path.join(self.base_destination_path, self.r[1].decode())
-            print(dest_path)
             
             os.makedirs(dest_path)
         
         elif self.r[0].decode() == "File":
             dest_path = os.path.join(self.base_destination_path, self.r[1].decode())
-            print(dest_path)
             
             with open(file=dest_path, mode="wb+") as file:
-                print("Conente")
+                #print(self.r[2])
                 file.write(self.r[2])
+                
+        print("Sending Confirmation")
+        sure_send(self.conn, b"Done")
+        #self.conn.send(b"Done")
 
 
 class ChatHandler(BaseHandler):
@@ -165,30 +157,3 @@ class ChatHandler(BaseHandler):
         else:
             self.conn.send(b"da")
 
-
-
-
-
-class FileTransferHandler(BaseHandler):
-    if hasattr(socket, "recvmsg"):
-        def setup(self):
-            pass
-    else:
-        def setup(self):
-            self.base_destination_path = self.args[0]
-            print(self.request)
-            self.path = self.request.decode()
-    
-    def handle(self):
-        if self.path.split(":")[0] == "Folder":
-            merge = os.path.join(self.base_destination_path, self.path.split(":")[1])
-            os.makedirs(name=merge)
-        
-        elif self.path.split(":")[0] == "File":
-                with open(file=os.path.join(self.base_destination_path, self.path.split(":")[1]), mode="wb+") as file:
-                    content = self.conn.recv(100000000)
-                    file.write(content)
-            
-        self.path = None
-                    
-            
