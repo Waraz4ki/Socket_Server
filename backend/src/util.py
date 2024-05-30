@@ -1,17 +1,22 @@
 import time
 
-def recvall(conn, buffsize=None) -> bytes:
-    package = conn.recv(500_000_000)
+def recvall(conn) -> bytes:
+    package = conn.recv(600_000_000)
     package_size = package.split(b":::")[0]
     package = package.removeprefix(package_size + b":::")
     
-    while len(package) != int(package_size):
-        package.__add__(conn.recv(500_000_000))
-        
+    print(int(package_size))
+    while not len(package) <= int(package_size):
+        package.__add__(conn.recv(600_000_000))
+    
     return package
 
 
 def sure_send(conn, data=bytes):
+    """
+    Returns True if transmission was succesfull and returns False if transmission failed
+    """
+    
     if isinstance(data, bytes) is False:
         raise TypeError
     data_len = str(len(data))
@@ -20,6 +25,6 @@ def sure_send(conn, data=bytes):
     
     try:
         conn.sendall(package)
-        #time.sleep(2)
+        return True
     except InterruptedError:
-        return "Not everything was send"
+        return False

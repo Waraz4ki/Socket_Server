@@ -19,21 +19,29 @@ class Socketclient:
         try:
             self.connection.connect((self.host, self.port))
         except ConnectionRefusedError:
-            print("No Server is running")
+            print("Failed to connect")
         while True:
             raw = input(">>>")
-            self.Protocol(raw, self.connection)
+            self.Protocol(self.connection)
+    
+    @property
+    def active_protocol_name(self):
+        return self.Protocol.protocol_name
+
 
 class BaseProtocol:
-    def __init__(self, inp, conn):
-        self.inp = inp
+    def __init__(self, conn):
         self.conn = conn
+        try:
+            sure_send(conn=self.conn, data=self.protocol_name.encode())
+            time.sleep(1)
+        except ConnectionError:
+            pass
         self.setup()
         try:
             self.handle()
         finally:
             self.finish()
-            
     def setup(self):
         pass
     def handle(self):
@@ -41,13 +49,21 @@ class BaseProtocol:
     def finish(self):
         pass
     
-    
+    @property
+    def protocol_name(self):
+        return self.__class__.__name__
+
 class FileFolderTransferProtocol(BaseProtocol):
+    def setup(self):
+        self.inp = recvall(conn=self.conn).decode()
+        print(self.inp)
+    
     def handle(self):
         self.do(self.inp)
     
     def do(self, som):
         for dir in os.scandir(som):
+            print(dir)
             new = dir.path.split("\\")
             
             for i in range(len(self.inp.split("\\"))-1):
@@ -59,27 +75,39 @@ class FileFolderTransferProtocol(BaseProtocol):
             if dir.is_dir():
                 full_package = f"Folder:::::{package}"
                 sure_send(self.conn, full_package.encode())
+                print("Package send")
                 
-                verify_recv = recvall(self.conn, 100)
-                if verify_recv:
-                    print("Confirmed")
+                verify_recv = self.conn.recv(1)
+                print(verify_recv)
+                if verify_recv.decode() == "R":
+                    print("Server has Confirmed")
+                    time.sleep(.2)
                     self.do(dir.path)
-            
-            elif dir.is_file():
+                    continue
+                
+            if dir.is_file():
                 with open(file=dir, mode="rb") as file:
                     full_package = b"File:::::" + package.encode() +b":::::"+ file.read()
                     sure_send(self.conn, full_package)
+                    print("Package send")
                 
-                verify_recv = recvall(self.conn, 100)
-                if verify_recv:
-                    print("Confirmed")
+                
+                verify_recv = self.conn.recv(1)
+                if verify_recv.decode() == "R":
+                    print("Server has Confirmed")
+                    time.sleep(.2)
                     pass
 
 
-PORT = 60_000
-HOST = "192.168.178.108"
-
-client = Socketclient(HOST, PORT, FileFolderTransferProtocol)
-client.connect()
+class UniversalProtocol():
+    def __init__(self) -> None:
+        pass
 
 
+
+if __name__ == "__main__":
+    PORT = 60_000
+    HOST = "192.168.178.108"
+    
+    client = Socketclient(HOST, PORT, FileFolderTransferProtocol)
+    client.connect()
