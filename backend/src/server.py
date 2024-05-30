@@ -6,7 +6,7 @@ import socket
 import json
 import time
 
-from backend.src.util import sure_send, recvall 
+from backend.src.util import sure_send, recvall
 
 SERVER_NAME = "example"
 
@@ -126,9 +126,12 @@ class BaseHandler:
         return self.__class__.__name__
 
 class FileTransferHandler(BaseHandler):
+    """
+    Manages a Transfer rate of about 6.5m/s
+    """
     def setup(self):
-        path_to_copy = r"C:\Program Files (x86)\Intel"
-        self.base_destination_path = r"C:\Users\usename\Documents\IT\Server-Client\backend\data"
+        path_to_copy = r"C:\Users\moritz\Documents\IT\Server-Client\node_modules"
+        self.base_destination_path = r"C:\Users\moritz\Documents\IT\Server-Client\backend\data"
         sure_send(conn=self.conn, data=path_to_copy.encode())
         
     def handle(self):
@@ -138,8 +141,8 @@ class FileTransferHandler(BaseHandler):
             
             if self.request[0].decode() == "Folder":
                 dest_path = os.path.join(self.base_destination_path, self.request[1].decode())
-
                 os.makedirs(dest_path)
+                
                 self.conn.send(b"R")
                 print("Confirm send")
 
@@ -150,7 +153,7 @@ class FileTransferHandler(BaseHandler):
                     print("writing...")
                     file.write(self.request[2])
                     print("done writing")
-
+                    
                     self.conn.send(b"R")
                     print("Confirm send")
                 

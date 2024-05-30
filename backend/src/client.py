@@ -13,16 +13,24 @@ class Socketclient:
         self.port = port
         self.Protocol = Protocol
         
-        self.connection = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-        
     def connect(self):
-        try:
-            self.connection.connect((self.host, self.port))
-        except ConnectionRefusedError:
-            print("Failed to connect")
+        while True:
+            try:
+                self.connection = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+                self.connection.connect((self.host, self.port))
+                self.stay_connected()
+            except ConnectionRefusedError:
+                print("Failed to connect to address")
+    
+    def stay_connected(self):     
         while True:
             raw = input(">>>")
-            self.Protocol(self.connection)
+            try:
+                self.Protocol(self.connection)
+            except ConnectionResetError:
+                print("Server was closed")
+                self.connection.close()
+                break
     
     @property
     def active_protocol_name(self):
@@ -63,7 +71,7 @@ class FileFolderTransferProtocol(BaseProtocol):
     
     def do(self, som):
         for dir in os.scandir(som):
-            print(dir)
+            #print(dir)
             new = dir.path.split("\\")
             
             for i in range(len(self.inp.split("\\"))-1):
@@ -78,10 +86,8 @@ class FileFolderTransferProtocol(BaseProtocol):
                 print("Package send")
                 
                 verify_recv = self.conn.recv(1)
-                print(verify_recv)
                 if verify_recv.decode() == "R":
-                    print("Server has Confirmed")
-                    time.sleep(.2)
+                    print("Server Confirmed")
                     self.do(dir.path)
                     continue
                 
@@ -91,11 +97,9 @@ class FileFolderTransferProtocol(BaseProtocol):
                     sure_send(self.conn, full_package)
                     print("Package send")
                 
-                
                 verify_recv = self.conn.recv(1)
                 if verify_recv.decode() == "R":
-                    print("Server has Confirmed")
-                    time.sleep(.2)
+                    print("Server Confirmed")
                     pass
 
 
