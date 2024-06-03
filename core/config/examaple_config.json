@@ -1,0 +1,7 @@
+{
+    "server_config": {
+        "server_name":"",
+        "ip_address":"",
+        "hex_encryption_key":""
+    }
+}

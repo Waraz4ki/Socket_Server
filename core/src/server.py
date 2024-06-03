@@ -1,17 +1,23 @@
-import threading
 import multiprocessing as mp
 import os
+import sys
 import logging
 import socket
-import json
-import time
+import struct
+import pickle
 
-from backend.src.util import sure_send, recvall
+from threading import Thread, Event, Lock, current_thread
+from core.src.util import send_msg, recv_msg, format_recv_msg
 
-SERVER_NAME = "example"
+#! Call a file into pseudo memory and naviate like a list
+import mmap
+
+SERVER_NAME = "Git"
+LOG_PATH = "./core/log" 
+
 
 logger = logging.getLogger(name=SERVER_NAME)
-logging.basicConfig(filename=f"{SERVER_NAME}.log", encoding='utf-8', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
+logging.basicConfig(filename=f"{LOG_PATH}{SERVER_NAME}.log", encoding='utf-8', level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 """Two Part Server
 
 __________                        ______________
@@ -25,7 +31,8 @@ __________                        ______________
     |
  Command
 """
-
+PACK_FMT = "!i"
+PACK_SIZE = struct.calcsize(PACK_FMT)
 
 class SocketServer():
     """A Multithreaded Socket Server
@@ -36,7 +43,8 @@ class SocketServer():
         """
         Can be supplied with a custom Handler class(has to inherit the BaseHandler class). If no Handler class is suplied, it will default to
         the UniversalHandler
-        """
+        """  
+        self.terminate = False
         self.host = host
         self.port = port
         if Handler is None:
@@ -63,6 +71,8 @@ class SocketServer():
                 
                 comm_port = mp.Process(target=self.accept_forever)
                 comm_port.start()
+                
+            return self.server
     
     def accept_forever(self):
         print(f"Server started awaiting connection...")
@@ -71,43 +81,37 @@ class SocketServer():
         while self.__serve:
             conn, addr = self.server.accept()
             try:
-                Worker = threading.Thread(target=self.serve_connection, args=(conn, addr))
+                Worker = Thread(target=self.serve_connection, args=(conn, addr))
                 Worker.start()
             except TimeoutError:
                 print("even")
             
     def serve_connection(self, conn, addr):
-        __keep_alive = True 
         """Serve a single Connection
         """
-        print(f"Connection to {addr} established succesfully in {threading.current_thread().name}")
-        logger.info(f"Connection to {addr} established succesfully in {threading.current_thread().name}")
+        print(f"Connection to {addr} established succesfully in {current_thread().name}")
+        logger.info(f"Connection to {addr} established succesfully in {current_thread().name}")
         
-        while __keep_alive:
+        while not self.terminate:
             try:
-                h = recvall(conn=conn)
-                print("Request recieved")
-
-                #path = r"C:\Users\moritz\Documents\IT\Server-Client\backend\data"
-                self.RequestHandler(h, conn, self.server)
+                h = format_recv_msg(conn, PACK_SIZE)
+                self.RequestHandler(h, conn, addr, self.server)
                 
             except ConnectionResetError:
-                logger.warning(f"Connection {addr} has unexpectadly disconnected")
+                logger.warning(f"Connection {addr} has unexpectedly disconnected")
                 conn.close()
                 break
             
         print(f"{addr} has been severed succesfully")
         logger.warning(f"{addr} has been severed succesfully")
 
-    def get_protocol(self, conn):
-        return conn.recv(1024)
-
 
 #TODO-----------------------------------------------------------------------------------------------------------------------
 class BaseHandler:
-    def __init__(self, h, conn, server):
+    def __init__(self, h, conn, addr, server):
         self.h = h
         self.conn = conn
+        self.addr = addr
         self.server = server
         self.setup()
         try:
@@ -125,55 +129,62 @@ class BaseHandler:
     def handler_name(self):
         return self.__class__.__name__
 
-class FileTransferHandler(BaseHandler):
-    """
-    Manages a Transfer rate of about 6.5m/s
-    """
+class FFT(BaseHandler):
     def setup(self):
-        path_to_copy = r"C:\Users\moritz\Documents\IT\Server-Client\node_modules"
-        self.base_destination_path = r"C:\Users\moritz\Documents\IT\Server-Client\backend\data"
-        sure_send(conn=self.conn, data=path_to_copy.encode())
-        
+        #remote_path = input("Path: ")
+        remote_path = r"C:\Program Files (x86)\Intel\PackageManager"
+        #self.local_path = input("Destination: ")
+        self.local_path = r"C:\Users\moritz\Documents\IT\Server-Client\data"
+        send_msg(self.conn, remote_path)
+    
     def handle(self):
         while True:
-            self.request = recvall(conn=self.conn)
-            self.request = self.request.split(b":::::")
+            package = format_recv_msg(self.conn, PACK_SIZE)
             
-            if self.request[0].decode() == "Folder":
-                dest_path = os.path.join(self.base_destination_path, self.request[1].decode())
-                os.makedirs(dest_path)
+            if package == "Done":
+                print("Transfer Done!")
+            
+            if package[0] == "Folder":
+                directory = os.path.join(self.local_path, package[1])
+                os.makedirs(directory)
+                print(f"Created {directory}")
                 
-                self.conn.send(b"R")
-                print("Confirm send")
-
-            if self.request[0].decode() == "File":
-                dest_path = os.path.join(self.base_destination_path, self.request[1].decode())
-
-                with open(file=dest_path, mode="wb+") as file:
-                    print("writing...")
-                    file.write(self.request[2])
-                    print("done writing")
-                    
-                    self.conn.send(b"R")
-                    print("Confirm send")
+                send_msg(self.conn, "Confirm")
+            
+            if package[0] == "File":
+                directory = os.path.join(self.local_path, package[1])
                 
-class ChatHandler(BaseHandler):
+                print(f"Writing File: {directory}")
+                with open(directory, mode="wb+") as file:
+                    file.write(package[2])
+                print(f"Writing done!")
+                
+                send_msg(self.conn, "Confirm")
+
+#Sliding Window Protocol
+class SlidingWindowProtocol(BaseHandler):
+    """
+    QSocket like checksum at start
+    End gets a hash of the file sent to compare if files are the same
+    """
     def setup(self):
         pass
     
+class ChatHandler(BaseHandler):
     def handle(self):
-        if isinstance(self.h.decode(), str):
-            print(self.h)
-            return self.h
-        else:
-            self.conn.send(b"da")
+        while True:
+            data = recv_msg(self.conn, PACK_SIZE)
+            obj_len = struct.unpack(PACK_FMT, data)[0]
+            obj_bytes = recv_msg(self.conn, obj_len)
+            obj = pickle.loads(obj_bytes)
+            print(obj)
 
 
 class UniversalHandler():
     """The Universal Handler will attempt to "adapt" to the clients wishes
     
     Based on the request sent by the client it will switch to the coresponding Handler supplied to this class.
-    This allows the Universal Handler to Handle every connection in a different way
+    This will allow handling of seperate connections in different ways
     """
     def __init__(self, request, conn, server, *args):
         pass

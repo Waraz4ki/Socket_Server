@@ -62,5 +62,7 @@ req.txt
 /test
 node_modules
 data
-
+config.json
+.env
+ARCHIVE 
 
