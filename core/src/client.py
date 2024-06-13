@@ -8,7 +8,6 @@ import pickle
 import struct
 
 from pathlib import Path
-#from util import sure_send, recvall
 from util import send_msg, recv_msg, format_recv_msg
 
 
@@ -126,5 +125,5 @@ if __name__ == "__main__":
     PORT = 60_000
     HOST = "192.168.178.108"
     
-    client = Socketclient(HOST, PORT, FFT)
+    client = Socketclient(HOST, PORT, ChatProtocol)
     client.connect()

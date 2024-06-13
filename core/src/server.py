@@ -1,19 +1,23 @@
 import multiprocessing as mp
 import os
-import sys
 import logging
 import socket
 import struct
 import pickle
+import queue
+import socketserver
+from concurrent.futures.thread import ThreadPoolExecutor
 
-from threading import Thread, Event, Lock, current_thread
+#! THREADPOLEXECUTER
+import threading
+#from threading import Thread, Event, Lock, current_thread
 from core.src.util import send_msg, recv_msg, format_recv_msg
 
 #! Call a file into pseudo memory and naviate like a list
 import mmap
 
 SERVER_NAME = "Git"
-LOG_PATH = "./core/log" 
+LOG_PATH = "./core/logs/" 
 
 
 logger = logging.getLogger(name=SERVER_NAME)
@@ -34,76 +38,81 @@ __________                        ______________
 PACK_FMT = "!i"
 PACK_SIZE = struct.calcsize(PACK_FMT)
 
-class SocketServer():
+class SocketServer(threading.Thread):
     """A Multithreaded Socket Server
     """
-    __serve = True
-    
     def __init__(self, host=str, port=int, Handler=object):
         """
         Can be supplied with a custom Handler class(has to inherit the BaseHandler class). If no Handler class is suplied, it will default to
         the UniversalHandler
-        """  
-        self.terminate = False
+        """
+        self.__serve = True
+        self.terminate = threading.Event()
+        
         self.host = host
         self.port = port
-        if Handler is None:
-            self.RequestHandler = UniversalHandler
-        else:
-            self.RequestHandler = Handler
+        self.RequestHandler = Handler or UniversalHandler
         
         if len(host) > 15:
             self.fam = socket.AF_INET6
         else:
             self.fam = socket.AF_INET
     
-    def activate(self):
-        """Will initiate the server and await connections
+    def activate(self, block_main_thread=bool):
         """
-        with socket.socket(family=self.fam, type=socket.SOCK_STREAM) as self.server:
-            if self.server:
-                try:
-                    self.server.bind((self.host, self.port))
-                    self.server.listen()
-
-                except OSError:
-                    logger.info(f"Server is already running")
-                
-                comm_port = mp.Process(target=self.accept_forever)
-                comm_port.start()
-                
-            return self.server
-    
-    def accept_forever(self):
-        print(f"Server started awaiting connection...")
-        logger.info(f"Server started at {self.host} awaiting connection on port {self.port}")
-        
-        while self.__serve:
-            conn, addr = self.server.accept()
+        Convenience Function\n
+        block_main_thread will decide wheter to stop the main thread and deal with the connections or
+        to try and execute the connections at the same time
+        """
+        self.server = socket.socket(family=self.fam, type=socket.SOCK_STREAM)
+        if self.server:
             try:
-                Worker = Thread(target=self.serve_connection, args=(conn, addr))
-                Worker.start()
-            except TimeoutError:
-                print("even")
+                self.server.bind((self.host, self.port))
+                self.server.listen()
+            except OSError:
+                logger.info(f"Server is already running")
             
-    def serve_connection(self, conn, addr):
+            #self.comm_port = threading.Thread(target=self.accept_forever, name="Comm-Port", args=(self.server, self.host, self.port))
+            #self.comm_port.start()
+    
+    def accept_forever(self, sock=socket.socket, host=str, port=int):
+        print(f"Server started awaiting connection...")
+        logger.info(f"Server started at {host} awaiting connection on port {port}")
+        while not self.terminate.is_set():
+            conn, addr = sock.accept()
+            
+            try:
+                #! Interpreter shutdown stops new threads
+                Worker = threading.Thread(target=self.serve_connection, args=(sock, conn, addr), daemon=True)
+                Worker.start()
+            except ValueError as e:
+                logger.error(f"Something went wrong, when trying to start a thread: {e}")
+            except RuntimeError:
+                self.accept_forever(sock, host, port)
+            
+    def serve_connection(self, sock, conn, addr):
         """Serve a single Connection
         """
-        print(f"Connection to {addr} established succesfully in {current_thread().name}")
-        logger.info(f"Connection to {addr} established succesfully in {current_thread().name}")
+        print(f"Connection to {addr} established succesfully in {threading.current_thread().name}")
+        logger.info(f"Connection to {addr} established succesfully in {threading.current_thread().name}")
         
-        while not self.terminate:
+        while self.__serve:
             try:
                 h = format_recv_msg(conn, PACK_SIZE)
-                self.RequestHandler(h, conn, addr, self.server)
+                print(h)
+                self.RequestHandler(h, conn, addr, sock)
                 
             except ConnectionResetError:
                 logger.warning(f"Connection {addr} has unexpectedly disconnected")
                 conn.close()
                 break
-            
         print(f"{addr} has been severed succesfully")
         logger.warning(f"{addr} has been severed succesfully")
+    
+    def close(self, stdwn_code):
+        self.terminate.set()
+        self.comm_port.join()
+        logger.critical(f"Server has been shutdown with code: {stdwn_code}")
 
 
 #TODO-----------------------------------------------------------------------------------------------------------------------
@@ -131,9 +140,7 @@ class BaseHandler:
 
 class FFT(BaseHandler):
     def setup(self):
-        #remote_path = input("Path: ")
-        remote_path = r"C:\Program Files (x86)\Intel\PackageManager"
-        #self.local_path = input("Destination: ")
+        remote_path = r"C:\Program Files (x86)\Intel"
         self.local_path = r"C:\Users\moritz\Documents\IT\Server-Client\data"
         send_msg(self.conn, remote_path)
     

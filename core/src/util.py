@@ -59,7 +59,6 @@ def send_msg(sock, obj):
     except InterruptedError:
         return False
 
-
 def format_recv_msg(sock, n):
     PACK_FMT = "!i"
     PACK_SIZE = struct.calcsize(PACK_FMT)
