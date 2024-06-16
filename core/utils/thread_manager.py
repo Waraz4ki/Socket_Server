@@ -19,10 +19,11 @@ class ThreadManager(threading.Thread):
         self.thread_list.clear()
         
     def thread_loop(self, func):
-        def wrap(*args):
+        def wrapper(*args):
             while self.thread_list.count(threading.current_thread().name):
+                #print(self.thread_list)
                 func(*args)
-        return wrap
+        return wrapper
     
     
 def thread_decorateor(func):

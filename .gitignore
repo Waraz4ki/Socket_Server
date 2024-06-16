@@ -64,6 +64,5 @@ node_modules
 data
 config.json
 .env
-ARCHIVE 
-asocket.py
+ARCHIVE
 

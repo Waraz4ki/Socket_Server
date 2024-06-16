@@ -1,0 +1,101 @@
+from asocket import ASocket
+import mmap
+import os
+from pathlib import Path
+
+class BaseProtocol(ASocket):
+    def __init__(self, sock, addr):
+        super().__init__(sock)
+        self.addr = addr
+        
+        try:
+            pass
+            #self.send_msg(sock, self.protocol_name)
+        except ConnectionError:
+            pass
+        self.setup()
+        try:
+            self.handle()
+        finally:
+            self.finish()
+    
+    def setup(self):
+        pass
+    def handle(self):
+        pass
+    def finish(self):
+        pass
+    
+    def recv_verify(self):
+        verify_recv = self.recv_msg(self.sock, self.PACK_SIZE)
+        if verify_recv:
+            print("Confirmed")
+            return True
+        
+    def send_verify(self):
+        self.send_msg(self.sock, True)
+    
+    @property
+    def protocol_name(self):
+        return self.__class__.__name__.removesuffix("Protocol")
+    
+class ChatProtocol(BaseProtocol):
+    def handle(self):
+        while True:
+            data = input(">>>")
+            self.send_msg(self.sock, data)
+
+class FFTProtocol(BaseProtocol):
+    def setup(self):
+        self.buffer = 1000
+        self.path_to_copy = self.format_recv_msg(self.sock, self.PACK_SIZE)
+        print(self.path_to_copy)
+        try:
+            os.scandir(self.path_to_copy)
+        except FileNotFoundError:
+            self.send_msg(self.sock, 404)
+        except TypeError:
+            print("Done")
+    
+    def handle(self):
+        self.send_dir(self.path_to_copy)
+    
+    def send_dir(self, current_dir):
+        """
+        Scans current directory and sends the contents to the socket
+        """
+        for dir in os.scandir(current_dir):
+            package = {
+                "type":str,
+                "path":str,
+                "buffer":self.buffer,
+                "content_size":int
+            }
+            split_dir = dir.path.split("\\")
+            
+            for i in range(len(self.path_to_copy.split("\\"))-1):
+                del split_dir[0]
+                
+            path = str(Path.joinpath(Path(*split_dir)))
+            package["path"] = path
+            
+            if dir.is_dir():
+                package["type"] = "folder"
+                self.send_msg(self.sock, package)
+                
+                if self.recv_verify():
+                    self.send_dir(dir.path)
+                
+            if dir.is_file():
+                package["type"] = "file"
+                
+                with open(file=dir, mode="rb") as file:
+                    mm = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+                    package["content_size"] = mm.size()
+                    self.send_msg(self.sock, package)
+                    
+                    for i in range(0, mm.size(), self.buffer):
+                        self.send_msg(self.sock, mm[i:i+self.buffer])
+                    mm.close()
+                self.send_msg(self.sock, None)
+            #self.send_msg(self.sock, 200)
