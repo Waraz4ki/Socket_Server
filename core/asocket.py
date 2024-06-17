@@ -92,8 +92,8 @@ class AServer(ASocket):
     def serve_connection(self, conn, addr):
         try:
             #handler = self.format_recv_msg(conn, self.PACK_SIZE)
+            print("START")
             self.handler(conn, addr)
-            input(">>>")
         except ConnectionResetError or TimeoutError or OSError as e:
             print("Closing Connection")
             self.manager.stop(threading.current_thread().name)

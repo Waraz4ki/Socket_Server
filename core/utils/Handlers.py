@@ -41,30 +41,29 @@ class FFTHandler(BaseHandler):
         while True:
             package = self.format_recv_msg(self.sock, self.PACK_SIZE)
             print(package)
-            if package == 200 or package == 404:
-                print("Stopping...")
-                break
-            print(package)
-            package_type = package["type"]
             partial_path = package["path"]
-            buffer = package["buffer"]
-            content_size = package["content_size"]
+            package_type = package["type"]
+            name = package["name"]
+            try:
+                makedirs(path.join(self.root_path, partial_path))
+            except FileExistsError:
+                pass
             
             if package_type == "folder":
-                absolute_path = path.join(self.root_path, partial_path)
+                absolute_path = path.join(self.root_path, partial_path, name)
                 makedirs(absolute_path)
-                print("e5hj5he")
                 self.send_msg(self.sock, True)
             
             if package_type == "file":
-                absolute_path = path.join(self.root_path, partial_path)
+                absolute_path = path.join(self.root_path, partial_path, name)
+                self.send_msg(self.sock, True)
                 
-                self.recv_file(absolute_path, "wb+", buffer, content_size)
-    
-    def recv_file(self, path, mode, buffer, size):
-        with open(file=path, mode=mode) as file:
-            while True:
-                chunck = self.format_recv_msg(self.sock, self.PACK_SIZE)
-                if not chunck:
-                    break
-                file.write(chunck)
+                with open(file=absolute_path, mode="wb+") as file:
+                    while True:
+                        #print("LOOP")
+                        chunck = self.format_recv_msg(self.sock, self.PACK_SIZE)
+                        if chunck == 200 or chunck is None:
+                            print("EXIT")
+                            break
+                        file.write(chunck)
+                        
