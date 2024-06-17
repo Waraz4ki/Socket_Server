@@ -35,7 +35,8 @@ class FFTHandler(BaseHandler):
     def setup(self):
         remote_path = input(">>>")
         self.send_msg(self.sock, remote_path)
-        self.root_path = r"C:\Users\moritz\Documents\IT\Server-Client\data"
+        self.root_path = input(">>>")
+        #self.root_path = r"C:\Users\moritz\Documents\IT\Server-Client\data"
     
     def handle(self):
         while True:
