@@ -7,12 +7,11 @@ class BaseProtocol(ASocket):
     def __init__(self, sock, addr):
         super().__init__(sock)
         self.addr = addr
-        
         try:
-            pass
-            #self.send_msg(sock, self.protocol_name)
+            self.send_msg(sock, self.protocol_name)
         except ConnectionError:
             pass
+        
         self.setup()
         try:
             self.handle()
@@ -28,7 +27,8 @@ class BaseProtocol(ASocket):
     
     @property
     def protocol_name(self):
-        return self.__class__.__name__.removesuffix("Protocol")
+        return self.__class__.__name__
+        #return self.__class__.__name__.removesuffix("Protocol")
     
 class ChatProtocol(BaseProtocol):
     def handle(self):
@@ -91,50 +91,4 @@ class FFTProtocol(BaseProtocol):
                             mm.close()
                     print("File Transfer Complete!")
                     self.send_msg(self.sock, 200)
-    
-    def send_dir2(self, current_dir):
-        """
-        Scans current directory and sends the contents to the socket
-        """
-        for dir in os.scandir(current_dir):
-            print("HI")
-            package = {
-                "type":str,
-                "path":str,
-                "buffer":self.buffer,
-                "content_size":int
-            }
-            split_dir = dir.path.split("\\")
-            
-            for i in range(len(self.path_to_copy.split("\\"))-1):
-                del split_dir[0]
-                
-            path = str(Path.joinpath(Path(*split_dir)))
-            package["path"] = path
-            
-            if dir.is_dir():
-                package["type"] = "folder"
-                self.send_msg(self.sock, package)
-                
-                verify_recv = self.recv_msg(self.sock, self.PACK_SIZE)
-                if verify_recv:
-                    print("Confirmed")
-                    self.send_dir(dir.path)
-                
-            if dir.is_file():
-                package["type"] = "file"
-                
-                with open(file=dir, mode="rb") as file:
-                    try:
-                        mm = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
-                        package["content_size"] = mm.size()
-                        self.send_msg(self.sock, package)
-
-                        for i in range(0, mm.size(), self.buffer):
-                            self.send_msg(self.sock, mm[i:i+self.buffer])
-                        mm.close()
-                    except ValueError:
-                        print("awd")
-                        pass
-                #self.send_msg(self.sock, None)
-            #self.send_msg(self.sock, 200)
+                    

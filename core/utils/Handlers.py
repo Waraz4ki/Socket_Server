@@ -7,6 +7,10 @@ class BaseHandler(ASocket):
     def __init__(self, sock, addr):
         super().__init__(sock)
         self.addr = addr
+        try:
+            self.send_msg(sock, self.handler_name)
+        except ConnectionError:
+            pass
         
         self.setup()
         try:
@@ -23,7 +27,8 @@ class BaseHandler(ASocket):
     
     @property
     def handler_name(self):
-        return self.__class__.__name__.removesuffix("Handler")
+        return self.__class__.__name__
+        #return self.__class__.__name__.removesuffix("Handler")
     
 class ChatHandler(BaseHandler):
     def handle(self):

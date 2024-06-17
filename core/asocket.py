@@ -53,7 +53,7 @@ class ASocket(threading.Thread):
 
 class AServer(ASocket):
     manager = ThreadManager()
-    def __init__(self, host, port, handler_class, timeout:int | None=None):
+    def __init__(self, host, port, handler_class:object | None=None, timeout:int | None=None):
         self.host = host
         self.port = port
         self.handler = handler_class
@@ -91,9 +91,26 @@ class AServer(ASocket):
     @manager.thread_loop
     def serve_connection(self, conn, addr):
         try:
-            #handler = self.format_recv_msg(conn, self.PACK_SIZE)
+            from utils import Handlers, Protocols
+            handler = self.format_recv_msg(conn, self.PACK_SIZE)
+            
+            if handler.endswith("Protocol"):
+                handler = handler.removesuffix("Protocol")
+                try:
+                    getattr(Handlers, f"{handler}Handler")(conn, addr)
+                except AttributeError:
+                    print("Handler doesn't exist")
+                    
+            elif handler.endswith("Handler"):
+                handler = handler.removesuffix("Handler")
+                try:
+                    getattr(Protocols, f"{handler}Protocol")(conn, addr)
+                except AttributeError:
+                    print("Protocol doesn't exist")
+            
             print("START")
-            self.handler(conn, addr)
+            
+            
         except ConnectionResetError or TimeoutError or OSError as e:
             print("Closing Connection")
             self.manager.stop(threading.current_thread().name)
