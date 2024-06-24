@@ -8,3 +8,4 @@ HOST = "192.168.178.108"
 
 Client = AClient(HOST, PORT, ChatProtocol)
 Client.connect()
+Client.handle()

@@ -1,51 +1,21 @@
-from asocket import ASocket
+#from asocket import ASocket
+from utils.base import Base
 from os import path, makedirs
-import mmap
-
-
-class BaseHandler(ASocket):
-    def __init__(self, sock, addr):
-        super().__init__(sock)
-        self.addr = addr
-        try:
-            self.send_msg(sock, self.handler_name)
-        except ConnectionError:
-            pass
-        
-        self.setup()
-        try:
-            self.handle()
-        finally:
-            self.finish()
     
-    def setup(self):
-        pass
+class ChatHandler(Base):
     def handle(self):
-        pass
-    def finish(self):
-        pass
-    
-    @property
-    def handler_name(self):
-        return self.__class__.__name__
-        #return self.__class__.__name__.removesuffix("Handler")
-    
-class ChatHandler(BaseHandler):
-    def handle(self):
-        while True:
-            data = self.format_recv_msg(self.sock, self.PACK_SIZE)
-            print(f"{self.addr}: {data}")
+        data = self.format_recv_msg(self.sock)
+        print(f"{self.addr}: {data}")
 
-class FFTHandler(BaseHandler):
+class FFTHandler(Base):
     def setup(self):
         remote_path = input(">>>")
         self.send_msg(self.sock, remote_path)
         self.root_path = input(">>>")
-        #self.root_path = r"C:\Users\moritz\Documents\IT\Server-Client\data"
     
     def handle(self):
         while True:
-            package = self.format_recv_msg(self.sock, self.PACK_SIZE)
+            package = self.format_recv_msg(self.sock)
             print(package)
             partial_path = package["path"]
             package_type = package["type"]
@@ -67,9 +37,8 @@ class FFTHandler(BaseHandler):
                 with open(file=absolute_path, mode="wb+") as file:
                     while True:
                         #print("LOOP")
-                        chunck = self.format_recv_msg(self.sock, self.PACK_SIZE)
+                        chunck = self.format_recv_msg(self.sock)
                         if chunck == 200 or chunck is None:
                             print("EXIT")
                             break
                         file.write(chunck)
-                        

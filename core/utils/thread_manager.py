@@ -15,6 +15,9 @@ class ThreadManager(threading.Thread):
     def stop(self, worker_name:str | None=None):
         self.thread_list.remove(worker_name)
     
+    def stop_current(self):
+        self.thread_list.remove(threading.current_thread().name)
+    
     def stop_all(self):
         self.thread_list.clear()
         
@@ -24,11 +27,3 @@ class ThreadManager(threading.Thread):
                 #print(self.thread_list)
                 func(*args)
         return wrapper
-    
-    
-def thread_decorateor(func):
-    def wrap(*args):
-        while True:
-            func(*args)
-    return wrap
-
