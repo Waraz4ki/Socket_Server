@@ -5,7 +5,6 @@ class ThreadManager(threading.Thread):
         self.thread_list = []
     
     def start(self, thread_obj):
-        #worker = threading.Thread(target=target, name=name, kwargs=kwargs, daemon=daemon)
         worker = thread_obj
         self.thread_list.append(worker.name)
         worker.start()
@@ -24,6 +23,5 @@ class ThreadManager(threading.Thread):
     def thread_loop(self, func):
         def wrapper(*args):
             while self.thread_list.count(threading.current_thread().name):
-                #print(self.thread_list)
                 func(*args)
         return wrapper

@@ -3,6 +3,8 @@ import struct
 import pickle
 import threading
 from utils.thread_manager import ThreadManager
+from utils.other import other
+
 
 def create_socket(host):
     if len(host) > 15:
@@ -53,7 +55,7 @@ class ASocket(threading.Thread):
 
 class AServer(ASocket):
     manager = ThreadManager()
-    def __init__(self, host, port, handler_classes:tuple | None=None, timeout:int | None=2):
+    def __init__(self, host:str | None=None, port:int | None=None, handler_classes:tuple | None=None, timeout:int | None=5):
         self.host = host
         self.port = port
         self.handlers = handler_classes
@@ -62,10 +64,7 @@ class AServer(ASocket):
         super().__init__(create_socket(self.host))
         self.sock.settimeout(timeout)
         
-        try:
-            self.sock.bind((host, port))
-        except Exception as e:
-            print(e)
+        self.sock.bind((self.host, self.port))
             
     def activate(self, recieve:bool | None=False):
         try:
@@ -80,7 +79,6 @@ class AServer(ASocket):
     def recieve_connections(self):
         print("Server awaiting connections")
         while not self.terminate.is_set():
-            print("2")
             try:
                 conn, addr = self.sock.accept()
                 # Spawn thread and handle
@@ -89,40 +87,58 @@ class AServer(ASocket):
                 self.manager.start(worker)
             except TimeoutError:
                 continue
+        print("Server has been shutdown")
     
     @manager.thread_loop
     def serve_connection_recursive(self, conn, addr):
-        print(f"Connection to {addr} has been established")
+        """
+        Serve a connection
+        """
+        #print(f"Connection to {addr} has been established")
         try:
-            handler_recv = self.format_recv_msg(conn)
-            
-            print(handler_recv)
+            package = self.format_recv_msg(conn)
+            recv_handler = package["type"]
             # Check if send handler name is in the tuple given to the AServer Class
-            for handler in self.handlers:
-                try:
-                    if handler.__name__ == handler_recv:
-                        handler(conn, addr)
-                        continue
-                except AttributeError:
-                    conn.close()
-                    print("Handler variable is missing: 'name'")
-            
-            self.stop_current(conn, f"Frocibly closing connection to {addr}", NotImplementedError)
-            
-        except ConnectionResetError or TimeoutError as e:
-            self.stop_current(conn, f"Connection from {addr} has been closed", e)
-        
-    def stop_current(self, sock, local_msg:any | None="Something went wrong", remote_msg:any | None=Exception):
-        self.send_msg(sock, remote_msg)
+            handler = other.compareObjectNameToString(self.handlers, recv_handler)
+            if handler:
+                handler(conn, addr, package)
+            else:
+                self.stop_current(conn, addr, f"Frocibly closing connection to {addr}", NotImplementedError)
+        # Checks if the connected maschine is still there
+        except ConnectionResetError as e:
+            self.stop_current(conn, addr, f"{addr} has closed the connection", e)
+    
+    def stop_current(self, sock, addr, local_msg:object | None="Something went wrong", remote_msg:object | None=Exception):
+        """
+        Shuts down current worker
+        """
+        try:
+            self.send_msg(sock, remote_msg)
+        except ConnectionResetError:
+            # If this error is caught, the Connected maschine has closed the connection
+            pass
         sock.close()
         print(local_msg)
         self.manager.stop_current() # Stops current worker
+    
+    def stop_worker(self, worker):
+        """
+        Shuts down a single connection
+        """
+        self.manager.stop(worker)
     
     def stop_all(self):
         """
         Shuts down every worker
         """
         self.manager.stop_all()
+    
+    def shudown(self):
+        """
+        Shuts down entire server
+        """
+        self.stop_all()
+        self.terminate.set()
     
     @property
     def active_workers(self):
@@ -143,7 +159,6 @@ class AClient(ASocket):
         print("Attempting to connect")
         self.conn.connect(self.addr)
         print("Connection Succesfull")
-        self.send_msg(self.sock, self.protocol.opposite_name(self.protocol.__name__))
     
     def handle(self):
         while True:
@@ -153,4 +168,13 @@ class AClient(ASocket):
                 continue
     
     def handle_recursive(self):
-        self.send_msg(self.sock, self.protocol.opposite_name())
+        while True:
+            package = {
+                "type":None,
+                "data":None,
+            }
+            package["type"] = self.protocol.opposite_name(self.protocol.__name__)
+            try:
+                self.protocol(self.conn, self.addr, package)
+            except ConnectionRefusedError:
+                pass

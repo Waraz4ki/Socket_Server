@@ -20,7 +20,7 @@ def createConfig(server_name:str, key_lenght:int):
             return e
 
 
-def loadedConfig():
+def loadConfig():
     if platform.system().lower() == "windows":
         try:
             with open(CONFIGPATH, mode="r", encoding="UTF-8") as config_file:

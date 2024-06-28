@@ -1,9 +1,10 @@
 from asocket import ASocket
 
 class Base(ASocket):
-    def __init__(self, sock, addr):
+    def __init__(self, sock, addr, package):
         super().__init__(sock)
         self.addr = addr
+        self.package = package
         #try:
         #    self.send_msg(sock, self.handler_name)
         #except ConnectionError:

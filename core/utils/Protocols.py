@@ -3,11 +3,12 @@ import mmap
 import os
 from pathlib import Path
 from utils.base import Base
-    
+
 class ChatProtocol(Base):
     def handle(self):
         data = input(">>>")
-        self.send_msg(self.sock, data)
+        self.package["data"] = data
+        self.send_msg(self.sock, self.package)
 
 class FFTProtocol(Base):
     def setup(self):
