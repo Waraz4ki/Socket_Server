@@ -2,8 +2,8 @@ import socket
 import struct
 import pickle
 import threading
-from utils.thread_manager import ThreadManager
-from utils.other import other
+from core.utils.thread_manager import ThreadManager
+from core.utils.other import other
 
 
 def create_socket(host):
@@ -21,9 +21,11 @@ class ASocket(threading.Thread):
     def __init__(self, sock):
         self.sock = sock
     
-    def send_msg(self, sock, obj:object):
+    def send_msg(self, sock:socket.socket | None=None, obj:object | None=None):
+        if sock is None:
+            sock = self.sock
+        
         obj_bytes = pickle.dumps(obj)
-
         obj_len = struct.pack(ASocket.PACK_FMT, len(obj_bytes))
         buffer = b''.join((obj_len, obj_bytes))
         try:
@@ -43,13 +45,18 @@ class ASocket(threading.Thread):
             received = received + len(chunk)
         return b''.join(chunks)
     
-    def format_recv_msg(self, sock) -> object:
+    def format_recv_msg(self, sock:socket.socket | None=None) -> object:
+        if sock is None:
+            sock = self.sock
         data = self.recv_msg(sock)
         obj_len = struct.unpack(self.PACK_FMT, data)[0]
         obj_bytes = self.recv_msg(sock, obj_len)
         obj = pickle.loads(obj_bytes)
 
         return obj
+    
+    def close(self):
+        self.sock.close()
 
 
 
@@ -82,7 +89,8 @@ class AServer(ASocket):
             try:
                 conn, addr = self.sock.accept()
                 # Spawn thread and handle
-                worker = threading.Thread(target=self.serve_connection_recursive, args=(conn, addr))
+                asock = ASocket(conn)
+                worker = threading.Thread(target=self.serve_connection_recursive, args=(asock, addr))
                 # Easy to stop newly spawned threads by using ThreadManager
                 self.manager.start(worker)
             except TimeoutError:
@@ -90,30 +98,30 @@ class AServer(ASocket):
         print("Server has been shutdown")
     
     @manager.thread_loop
-    def serve_connection_recursive(self, conn, addr):
+    def serve_connection_recursive(self, asock, addr):
         """
         Serve a connection
         """
-        #print(f"Connection to {addr} has been established")
         try:
-            package = self.format_recv_msg(conn)
+            package = asock.format_recv_msg()
             recv_handler = package["type"]
             # Check if send handler name is in the tuple given to the AServer Class
             handler = other.compareObjectNameToString(self.handlers, recv_handler)
             if handler:
-                handler(conn, addr, package)
+                handler(asock, addr, package)
             else:
-                self.stop_current(conn, addr, f"Frocibly closing connection to {addr}", NotImplementedError)
+                self.stop_current(asock, addr, f"Frocibly closing connection to {addr}", NotImplementedError)
         # Checks if the connected maschine is still there
         except ConnectionResetError as e:
-            self.stop_current(conn, addr, f"{addr} has closed the connection", e)
+            self.stop_current(asock, addr, f"{addr} has closed the connection", e)
     
     def stop_current(self, sock, addr, local_msg:object | None="Something went wrong", remote_msg:object | None=Exception):
         """
         Shuts down current worker
         """
         try:
-            self.send_msg(sock, remote_msg)
+            sock.send_msg(obj=remote_msg)
+            #self.send_msg(sock, remote_msg)
         except ConnectionResetError:
             # If this error is caught, the Connected maschine has closed the connection
             pass
@@ -145,25 +153,25 @@ class AServer(ASocket):
         return self.manager.thread_list
 
 
-class AClient(ASocket):
+class AClient():
     def __init__(self, host, port, protocol_class):
         self.host = host
         self.port = port
         self.addr = (self.host, self.port)
         self.protocol = protocol_class
         
-        self.conn = create_socket(self.host)
-        super().__init__(self.conn)
+        sock = create_socket(self.host)
+        self.sock = ASocket(sock)
         
     def connect(self):
         print("Attempting to connect")
-        self.conn.connect(self.addr)
+        self.sock.sock.connect(self.addr)
         print("Connection Succesfull")
     
     def handle(self):
         while True:
             try:
-                self.protocol(self.conn, self.addr)
+                self.protocol(self.sock, self.addr)
             except ConnectionRefusedError:
                 continue
     
@@ -175,6 +183,6 @@ class AClient(ASocket):
             }
             package["type"] = self.protocol.opposite_name(self.protocol.__name__)
             try:
-                self.protocol(self.conn, self.addr, package)
+                self.protocol(self.sock, self.addr, package)
             except ConnectionRefusedError:
                 pass

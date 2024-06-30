@@ -2,13 +2,13 @@
 import mmap
 import os
 from pathlib import Path
-from utils.base import Base
+from core.utils.base import Base
 
 class ChatProtocol(Base):
     def handle(self):
         data = input(">>>")
         self.package["data"] = data
-        self.send_msg(self.sock, self.package)
+        self.sock.send_msg(obj=self.package)
 
 class FFTProtocol(Base):
     def setup(self):

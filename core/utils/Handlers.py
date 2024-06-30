@@ -1,5 +1,5 @@
 #from asocket import ASocket
-from utils.base import Base
+from core.utils.base import Base
 from os import path, makedirs
     
 class ChatHandler(Base):
@@ -10,7 +10,7 @@ class ChatHandler(Base):
 class FFTHandler(Base):
     def setup(self):
         remote_path = input(">>>")
-        self.send_msg(self.sock, remote_path)
+        self.send_msg(obj=remote_path)
         self.root_path = input(">>>")
     
     def handle(self):

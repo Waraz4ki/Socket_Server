@@ -1,8 +1,8 @@
-from asocket import ASocket
+from core.asocket import ASocket
 
-class Base(ASocket):
+class Base():
     def __init__(self, sock, addr, package):
-        super().__init__(sock)
+        self.sock = sock
         self.addr = addr
         self.package = package
         #try:
