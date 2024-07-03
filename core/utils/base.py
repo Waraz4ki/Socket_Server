@@ -5,10 +5,6 @@ class Base():
         self.sock = sock
         self.addr = addr
         self.package = package
-        #try:
-        #    self.send_msg(sock, self.handler_name)
-        #except ConnectionError:
-        #    pass
         
         self.setup()
         try:

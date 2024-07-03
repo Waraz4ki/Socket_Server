@@ -6,6 +6,6 @@ import time
 PORT = 60_000
 HOST = socket.gethostbyname(socket.gethostname())
 
-Server = AServer(HOST, PORT, [ChatHandler, FFTHandler])
+Server = AServer(HOST, PORT, [FFTHandler])
 Server.activate()
 Server.recieve_connections()

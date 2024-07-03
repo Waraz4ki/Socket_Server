@@ -29,12 +29,3 @@ def loadConfig():
             return config
         except FileNotFoundError:
             return "config not found"
-    #else:
-    #
-    #    try:
-    #        with open(DOCKER_CONFIG_PATH, mode="r", encoding="UTF-8") as config_file:
-    #            config = json.load(config_file)
-    #
-    #        return config
-    #    except FileNotFoundError:
-    #        return "config not found"

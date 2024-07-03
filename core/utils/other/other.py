@@ -10,4 +10,4 @@ def compareObjectNameToString(iterable:list, name:str):
         if i.__name__ == name:
             return i
     
-    return False
+    return None

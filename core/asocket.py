@@ -2,6 +2,9 @@ import socket
 import struct
 import pickle
 import threading
+import os
+import mmap
+
 from core.utils.thread_manager import ThreadManager
 from core.utils.other import other
 
@@ -33,6 +36,24 @@ class ASocket(threading.Thread):
             return True
         except InterruptedError:
             return False
+    
+    def send_file(self, path:str, buffer:int):
+        file = open(path, "rb")
+        
+        print(f"Transfering {path}")
+        try:
+            # Send the contents of the file in chunks based on buffer
+            with mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            #mm = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
+                for i in range(0, mm.size(), buffer):
+                    self.send_msg(mm[i:i+buffer])
+                
+            #mm.close()
+        except ModuleNotFoundError or ValueError:
+            print("mmap failed because of emtpy file, or it isn't installed")
+        
+        finally:
+            file.close()
     
     def recv_msg(self, sock, n:float | None=PACK_SIZE) -> bytes:
         chunks = []
@@ -89,8 +110,8 @@ class AServer(ASocket):
             try:
                 conn, addr = self.sock.accept()
                 # Spawn thread and handle
-                asock = ASocket(conn)
-                worker = threading.Thread(target=self.serve_connection_recursive, args=(asock, addr))
+                sock = ASocket(conn)
+                worker = threading.Thread(target=self.serve_connection, args=(sock, addr))
                 # Easy to stop newly spawned threads by using ThreadManager
                 self.manager.start(worker)
             except TimeoutError:
@@ -98,7 +119,7 @@ class AServer(ASocket):
         print("Server has been shutdown")
     
     @manager.thread_loop
-    def serve_connection_recursive(self, asock, addr):
+    def serve_connection(self, asock:ASocket, addr):
         """
         Serve a connection
         """
@@ -110,21 +131,15 @@ class AServer(ASocket):
             if handler:
                 handler(asock, addr, package)
             else:
-                self.stop_current(asock, addr, f"Frocibly closing connection to {addr}", NotImplementedError)
+                self.stop_current(asock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
         # Checks if the connected maschine is still there
         except ConnectionResetError as e:
-            self.stop_current(asock, addr, f"{addr} has closed the connection", e)
+            self.stop_current(asock, f"{addr} has closed the connection")
     
-    def stop_current(self, sock, addr, local_msg:object | None="Something went wrong", remote_msg:object | None=Exception):
+    def stop_current(self, sock, local_msg:object | None="Something went wrong"):
         """
         Shuts down current worker
         """
-        try:
-            sock.send_msg(obj=remote_msg)
-            #self.send_msg(sock, remote_msg)
-        except ConnectionResetError:
-            # If this error is caught, the Connected maschine has closed the connection
-            pass
         sock.close()
         print(local_msg)
         self.manager.stop_current() # Stops current worker
