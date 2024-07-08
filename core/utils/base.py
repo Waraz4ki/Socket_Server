@@ -1,7 +1,7 @@
 from core.asocket import ASocket
 
 class Base():
-    def __init__(self, sock, addr, package):
+    def __init__(self, sock:ASocket, addr, package):
         self.sock = sock
         self.addr = addr
         self.package = package

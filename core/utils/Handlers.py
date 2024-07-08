@@ -10,7 +10,7 @@ class ChatHandler(Base):
 class FFTHandler(Base):
     def setup(self):
         remote_path = input(">>>")
-        self.send_msg(obj=remote_path)
+        self.sock.send_msg(obj=remote_path)
         self.root_path = input(">>>")
     
     def handle(self):

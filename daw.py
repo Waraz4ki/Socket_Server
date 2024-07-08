@@ -8,4 +8,5 @@ HOST = "192.168.56.1"
 
 Client = AClient(HOST, PORT, ChatProtocol)
 Client.connect()
-Client.handle_recursive()
+Client.setup()
+Client.handle()

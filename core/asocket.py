@@ -17,12 +17,12 @@ def create_socket(host):
     return socket.socket(family=sock_family, type=socket.SOCK_STREAM)
     
 
-class ASocket(threading.Thread):
+class ASocket(socket.socket):
     PACK_FMT = "!i"
     PACK_SIZE = struct.calcsize(PACK_FMT)
     
-    def __init__(self, sock):
-        self.sock = sock
+    def __init__(self):
+        self.sock = super().__init__(family=socket.AF_INET, type=socket.SOCK_STREAM)
     
     def send_msg(self, sock:socket.socket | None=None, obj:object | None=None):
         if sock is None:
@@ -33,7 +33,6 @@ class ASocket(threading.Thread):
         buffer = b''.join((obj_len, obj_bytes))
         try:
             sock.sendall(buffer)
-            return True
         except InterruptedError:
             return False
     
@@ -47,8 +46,7 @@ class ASocket(threading.Thread):
             #mm = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
                 for i in range(0, mm.size(), buffer):
                     self.send_msg(mm[i:i+buffer])
-                
-            #mm.close()
+                    
         except ModuleNotFoundError or ValueError:
             print("mmap failed because of emtpy file, or it isn't installed")
         
@@ -80,18 +78,16 @@ class ASocket(threading.Thread):
         self.sock.close()
 
 
-
-class AServer(ASocket):
+class AServer():
     manager = ThreadManager()
-    def __init__(self, host:str | None=None, port:int | None=None, handler_classes:tuple | None=None, timeout:int | None=5):
+    def __init__(self, sock:ASocket, host:str, port:int, handler_classes:tuple | None=None, timeout:int | None=5):
+        self.sock = sock
         self.host = host
         self.port = port
         self.handlers = handler_classes
         self.terminate = threading.Event()
         
-        super().__init__(create_socket(self.host))
         self.sock.settimeout(timeout)
-        
         self.sock.bind((self.host, self.port))
             
     def activate(self, recieve:bool | None=False):
@@ -118,20 +114,24 @@ class AServer(ASocket):
                 continue
         print("Server has been shutdown")
     
+    def setup_connection(self, asock:ASocket, addr):
+        recv_handler = asock.format_recv_msg()
+        print(recv_handler)
+        # Check if send handler name is in the tuple given to the AServer Class
+        handler = other.compareObjectNameToString(self.handlers, recv_handler)
+        if handler:
+            return handler
+            #handler(asock, addr, recv_handler)
+        else:
+            self.stop_current(asock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
+    
     @manager.thread_loop
     def serve_connection(self, asock:ASocket, addr):
         """
         Serve a connection
         """
         try:
-            package = asock.format_recv_msg()
-            recv_handler = package["type"]
-            # Check if send handler name is in the tuple given to the AServer Class
-            handler = other.compareObjectNameToString(self.handlers, recv_handler)
-            if handler:
-                handler(asock, addr, package)
-            else:
-                self.stop_current(asock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
+            pass
         # Checks if the connected maschine is still there
         except ConnectionResetError as e:
             self.stop_current(asock, f"{addr} has closed the connection")
@@ -182,6 +182,9 @@ class AClient():
         print("Attempting to connect")
         self.sock.sock.connect(self.addr)
         print("Connection Succesfull")
+    
+    def setup(self):
+        self.sock.send_msg(obj=self.protocol.opposite_name(self.protocol.__name__))
     
     def handle(self):
         while True:

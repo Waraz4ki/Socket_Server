@@ -1,4 +1,3 @@
-#from asocket import ASocket
 import mmap
 import os
 from pathlib import Path
@@ -13,7 +12,8 @@ class ChatProtocol(Base):
 class FFTProtocol(Base):
     def setup(self):
         self.buffer = 100000
-        self.path_to_copy = self.format_recv_msg(self.sock)
+        
+        self.path_to_copy = self.sock.format_recv_msg()
         try:
             os.scandir(self.path_to_copy)
         except FileNotFoundError:
