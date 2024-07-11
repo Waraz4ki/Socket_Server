@@ -1,10 +1,9 @@
 from core.asocket import ASocket
 
 class Base():
-    def __init__(self, sock:ASocket, addr, package):
+    def __init__(self, sock:ASocket, addr):
         self.sock = sock
         self.addr = addr
-        self.package = package
         
         self.setup()
         try:

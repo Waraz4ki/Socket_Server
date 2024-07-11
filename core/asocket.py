@@ -98,10 +98,11 @@ class AServer():
             
     def activate(self, recieve:bool | None=False, backlog:int | None=0):
         self.sock.listen(backlog)
-        if recieve:
-            # Spawn new thread to recieve all the incoming connections
-            comm_port = threading.Thread(target=self.recieve_connections)
-            comm_port.start()
+        if not recieve:
+            return
+        # Spawn new thread to recieve all the incoming connections
+        comm_port = threading.Thread(target=self.recieve_connections)
+        comm_port.start()
     
     def recieve_connections(self):
         print("Server awaiting connections")
@@ -119,15 +120,12 @@ class AServer():
     
     def setup_connection(self, sock:ASocket, addr):
         recv_handler = sock.format_recv_msg()
-        print(recv_handler)
         # Check if send handler name is in the tuple given to the AServer Class
         handler = other.compareObjectNameToString(self.handlers, recv_handler)
-        if handler:
-            self.serve_connection(sock, addr, handler)
-            #return handler
-            #handler(asock, addr, recv_handler)
-        else:
+        if not handler:
             self.stop_current(sock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
+            
+        self.serve_connection(sock, addr, handler)
     
     @manager.thread_loop
     def serve_connection(self, sock:ASocket, addr, handler):
@@ -135,8 +133,7 @@ class AServer():
         Serve a connection
         """
         try:
-            package = sock.format_recv_msg()
-            handler(sock, addr, package)
+            handler(sock, addr)
         # Checks if the connected maschine is still there
         except ConnectionResetError as e:
             self.stop_current(sock, f"{addr} has closed the connection")
@@ -191,21 +188,6 @@ class AClient():
     def handle(self):
         while True:
             try:
-                print("awf")
-                package = self.sock.format_recv_msg()
-                print(package)
-                self.protocol(self.sock, self.host, package)
+                self.protocol(self.sock, self.host)
             except ConnectionRefusedError:
                 continue
-    
-    def handle_recursive(self):
-        while True:
-            package = {
-                "type":None,
-                "data":None,
-            }
-            package["type"] = self.protocol.opposite_name(self.protocol.__name__)
-            try:
-                self.protocol(self.sock, self.addr, package)
-            except ConnectionRefusedError:
-                pass

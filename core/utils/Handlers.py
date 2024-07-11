@@ -4,7 +4,7 @@ from os import path, makedirs
     
 class ChatHandler(Base):
     def handle(self):
-        data = self.package.get("data")
+        data = self.sock.format_recv_msg()
         print(f"{self.addr}: {data}")
 
 class FFTHandler(Base):

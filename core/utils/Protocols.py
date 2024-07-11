@@ -6,8 +6,7 @@ from core.utils.base import Base
 class ChatProtocol(Base):
     def handle(self):
         data = input(">>>")
-        self.package["data"] = data
-        self.sock.send_msg(obj=self.package)
+        self.sock.send_msg(data)
 
 class FFTProtocol(Base):
     def setup(self):
