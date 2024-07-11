@@ -1,25 +1,22 @@
-#from asocket import ASocket
 import mmap
 import os
 from pathlib import Path
-from utils.base import Base
+from core.utils.base import Base
 
 class ChatProtocol(Base):
     def handle(self):
         data = input(">>>")
-        self.package["data"] = data
-        self.send_msg(self.sock, self.package)
+        self.sock.send_msg(data)
 
 class FFTProtocol(Base):
     def setup(self):
         self.buffer = 100000
-        self.path_to_copy = self.format_recv_msg(self.sock)
+        
+        self.path_to_copy = self.sock.format_recv_msg()
         try:
             os.scandir(self.path_to_copy)
         except FileNotFoundError:
-            self.send_msg(self.sock, 404)
-        except TypeError:
-            print("Done")
+            self.send_msg(self.sock, FileNotFoundError)
     
     def handle(self):
         self.send_dir(self.path_to_copy)
@@ -44,26 +41,20 @@ class FFTProtocol(Base):
             if dir.is_dir():
                 package["type"] = "folder"
                 print(package)
-                self.send_msg(self.sock, package)
+                self.sock.send_msg(self.sock, package)
                 
-                if self.recv_msg(self.sock):
+                if self.sock.recv_msg(self.sock):
                     self.send_dir(dir.path)
             
             if dir.is_file():
                 package["type"] = "file"
                 print(package)
-                self.send_msg(self.sock, package)
+                self.sock.send_msg(self.sock, package)
                 
                 if self.recv_msg(self.sock):
                     print("File Transfer Authorized...")
-                    if os.path.getsize(dir.path) != 0:
-                        # Send the contents of the file in chunks based on buffer
-                        with open(dir, "rb") as file:
-                            mm = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
-                            
-                            for i in range(0, mm.size(), self.buffer):
-                                self.send_msg(self.sock, mm[i:i+self.buffer])
-                            
-                            mm.close()
+                    self.sock.send_file(dir.path, self.buffer)
+                    
                     print("File Transfer Complete!")
-                    self.send_msg(self.sock, 200)
+                    self.sock.send_msg(self.sock, 200)
+                    

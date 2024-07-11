@@ -58,11 +58,12 @@ target/
 
 # Other
 .venv
+.vscode
+.env
 req.txt
 /test
 node_modules
 data
 config.json
-.env
 ARCHIVE
-
+test.py

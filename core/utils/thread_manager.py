@@ -3,7 +3,7 @@ import threading
 class ThreadManager(threading.Thread):
     def __init__(self):
         self.thread_list = []
-    
+        
     def start(self, thread_obj):
         worker = thread_obj
         self.thread_list.append(worker.name)

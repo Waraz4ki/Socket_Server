@@ -1,14 +1,9 @@
-from asocket import ASocket
+from core.asocket import ASocket
 
-class Base(ASocket):
-    def __init__(self, sock, addr, package):
-        super().__init__(sock)
+class Base():
+    def __init__(self, sock:ASocket, addr):
+        self.sock = sock
         self.addr = addr
-        self.package = package
-        #try:
-        #    self.send_msg(sock, self.handler_name)
-        #except ConnectionError:
-        #    pass
         
         self.setup()
         try:
