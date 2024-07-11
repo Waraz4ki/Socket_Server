@@ -1,4 +1,4 @@
-from core.asocket import AServer
+from core.asocket import AServer, ASocket
 from core.utils.Handlers import *
 import socket
 import time
@@ -6,6 +6,8 @@ import time
 PORT = 60_000
 HOST = socket.gethostbyname(socket.gethostname())
 
-Server = AServer(HOST, PORT, [ChatHandler,FFTHandler])
+print(HOST)
+
+Server = AServer(ASocket(), HOST, PORT, [ChatHandler,FFTHandler])
 Server.activate()
 Server.recieve_connections()

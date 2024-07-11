@@ -2,11 +2,7 @@ import threading
 
 class ThreadManager(threading.Thread):
     def __init__(self):
-        pass
-        #self.thread_list = []
-        #if not isinstance(loop_setup, function):
-        #    raise TypeError(f"loop_setup has to be a function not a {type(loop_setup)}")
-        #self.loop_setup = loop_setup
+        self.thread_list = []
         
     def start(self, thread_obj):
         worker = thread_obj
@@ -25,7 +21,6 @@ class ThreadManager(threading.Thread):
         self.thread_list.clear()
         
     def thread_loop(self, func):
-        #self.loop_setup()
         def wrapper(*args):
             while self.thread_list.count(threading.current_thread().name):
                 func(*args)

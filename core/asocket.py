@@ -17,22 +17,36 @@ def create_socket(host):
     return socket.socket(family=sock_family, type=socket.SOCK_STREAM)
     
 
-class ASocket(socket.socket):
+class ASocket():
     PACK_FMT = "!i"
     PACK_SIZE = struct.calcsize(PACK_FMT)
     
-    def __init__(self):
-        self.sock = super().__init__(family=socket.AF_INET, type=socket.SOCK_STREAM)
+    def __init__(self, sock:socket.socket | None=None):
+        if sock:
+            print("wda")
+            self.sock_obj = sock
+        else:
+            self.sock_obj = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        self.timeout = self.sock_obj.timeout
     
-    def send_msg(self, sock:socket.socket | None=None, obj:object | None=None):
-        if sock is None:
-            sock = self.sock
+    def bind(self, address):
+        self.sock_obj.bind(address)
         
+    def listen(self, backlog):
+        self.sock_obj.listen(backlog)
+    
+    def accept(self):
+        return self.sock_obj.accept()
+    
+    def connect(self, address):
+        self.sock_obj.connect(address)
+    
+    def send_msg(self, obj:object | None=None):
         obj_bytes = pickle.dumps(obj)
         obj_len = struct.pack(ASocket.PACK_FMT, len(obj_bytes))
         buffer = b''.join((obj_len, obj_bytes))
         try:
-            sock.sendall(buffer)
+            self.sock_obj.sendall(buffer)
         except InterruptedError:
             return False
     
@@ -43,39 +57,31 @@ class ASocket(socket.socket):
         try:
             # Send the contents of the file in chunks based on buffer
             with mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-            #mm = mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ)
                 for i in range(0, mm.size(), buffer):
                     self.send_msg(mm[i:i+buffer])
-                    
         except ModuleNotFoundError or ValueError:
             print("mmap failed because of emtpy file, or it isn't installed")
-        
         finally:
             file.close()
     
-    def recv_msg(self, sock, n:float | None=PACK_SIZE) -> bytes:
+    def recv_msg(self, n:float | None=PACK_SIZE) -> bytes:
         chunks = []
         received = 0
         while received < n:
-            chunk = sock.recv(n - received)
+            chunk = self.sock_obj.recv(n - received)
             if len(chunk) == 0:
-                raise BrokenPipeError(f"{threading.current_thread()}:{self.sock.getsockname()}")
+                raise BrokenPipeError(f"{threading.current_thread()}:{self.sock_obj.getsockname()}")
             chunks.append(chunk)
             received = received + len(chunk)
         return b''.join(chunks)
     
-    def format_recv_msg(self, sock:socket.socket | None=None) -> object:
-        if sock is None:
-            sock = self.sock
-        data = self.recv_msg(sock)
+    def format_recv_msg(self) -> object:
+        data = self.recv_msg()
         obj_len = struct.unpack(self.PACK_FMT, data)[0]
-        obj_bytes = self.recv_msg(sock, obj_len)
+        obj_bytes = self.recv_msg(obj_len)
         obj = pickle.loads(obj_bytes)
 
         return obj
-    
-    def close(self):
-        self.sock.close()
 
 
 class AServer():
@@ -87,18 +93,15 @@ class AServer():
         self.handlers = handler_classes
         self.terminate = threading.Event()
         
-        self.sock.settimeout(timeout)
+        self.sock.timeout = timeout
         self.sock.bind((self.host, self.port))
             
-    def activate(self, recieve:bool | None=False):
-        try:
-            self.sock.listen()
-            if recieve:
-                # Spawn new thread to recieve all the incoming connections
-                comm_port = threading.Thread(target=self.recieve_connections)
-                comm_port.start()
-        except Exception as e:
-            print(e)
+    def activate(self, recieve:bool | None=False, backlog:int | None=0):
+        self.sock.listen(backlog)
+        if recieve:
+            # Spawn new thread to recieve all the incoming connections
+            comm_port = threading.Thread(target=self.recieve_connections)
+            comm_port.start()
     
     def recieve_connections(self):
         print("Server awaiting connections")
@@ -107,40 +110,42 @@ class AServer():
                 conn, addr = self.sock.accept()
                 # Spawn thread and handle
                 sock = ASocket(conn)
-                worker = threading.Thread(target=self.serve_connection, args=(sock, addr))
+                worker = threading.Thread(target=self.setup_connection, args=(sock, addr))
                 # Easy to stop newly spawned threads by using ThreadManager
                 self.manager.start(worker)
             except TimeoutError:
                 continue
         print("Server has been shutdown")
     
-    def setup_connection(self, asock:ASocket, addr):
-        recv_handler = asock.format_recv_msg()
+    def setup_connection(self, sock:ASocket, addr):
+        recv_handler = sock.format_recv_msg()
         print(recv_handler)
         # Check if send handler name is in the tuple given to the AServer Class
         handler = other.compareObjectNameToString(self.handlers, recv_handler)
         if handler:
-            return handler
+            self.serve_connection(sock, addr, handler)
+            #return handler
             #handler(asock, addr, recv_handler)
         else:
-            self.stop_current(asock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
+            self.stop_current(sock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
     
     @manager.thread_loop
-    def serve_connection(self, asock:ASocket, addr):
+    def serve_connection(self, sock:ASocket, addr, handler):
         """
         Serve a connection
         """
         try:
-            pass
+            package = sock.format_recv_msg()
+            handler(sock, addr, package)
         # Checks if the connected maschine is still there
         except ConnectionResetError as e:
-            self.stop_current(asock, f"{addr} has closed the connection")
+            self.stop_current(sock, f"{addr} has closed the connection")
     
-    def stop_current(self, sock, local_msg:object | None="Something went wrong"):
+    def stop_current(self, sock:ASocket, local_msg:object | None="Something went wrong"):
         """
         Shuts down current worker
         """
-        sock.close()
+        sock.sock_obj.close()
         print(local_msg)
         self.manager.stop_current() # Stops current worker
     
@@ -169,18 +174,15 @@ class AServer():
 
 
 class AClient():
-    def __init__(self, host, port, protocol_class):
+    def __init__(self, sock:ASocket, host, port, protocol_class):
+        self.sock = sock
         self.host = host
         self.port = port
-        self.addr = (self.host, self.port)
         self.protocol = protocol_class
-        
-        sock = create_socket(self.host)
-        self.sock = ASocket(sock)
         
     def connect(self):
         print("Attempting to connect")
-        self.sock.sock.connect(self.addr)
+        self.sock.connect((self.host, self.port))
         print("Connection Succesfull")
     
     def setup(self):
@@ -189,7 +191,10 @@ class AClient():
     def handle(self):
         while True:
             try:
-                self.protocol(self.sock, self.addr)
+                print("awf")
+                package = self.sock.format_recv_msg()
+                print(package)
+                self.protocol(self.sock, self.host, package)
             except ConnectionRefusedError:
                 continue
     
