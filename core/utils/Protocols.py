@@ -1,12 +1,17 @@
-import mmap
 import os
 from pathlib import Path
 from core.utils.base import Base
 
 class ChatProtocol(Base):
     def handle(self):
-        data = input(">>>")
-        self.sock.send_msg(data)
+        try:
+            data = input(">>>")
+            self.sock.send_msg(data)
+        except KeyboardInterrupt or EOFError:
+            print("endin chat")
+            return
+    def finish(self):
+        self.sock.kill()
 
 class FFTProtocol(Base):
     def setup(self):

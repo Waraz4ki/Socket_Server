@@ -2,8 +2,8 @@ import socket
 import struct
 import pickle
 import threading
-import os
 import mmap
+import logging
 
 from core.utils.thread_manager import ThreadManager
 from core.utils.other import other
@@ -16,6 +16,7 @@ def create_socket(host):
         sock_family = socket.AF_INET
     return socket.socket(family=sock_family, type=socket.SOCK_STREAM)
     
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s',)
 
 class ASocket():
     PACK_FMT = "!i"
@@ -23,7 +24,6 @@ class ASocket():
     
     def __init__(self, sock:socket.socket | None=None):
         if sock:
-            print("wda")
             self.sock_obj = sock
         else:
             self.sock_obj = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
@@ -45,15 +45,12 @@ class ASocket():
         obj_bytes = pickle.dumps(obj)
         obj_len = struct.pack(ASocket.PACK_FMT, len(obj_bytes))
         buffer = b''.join((obj_len, obj_bytes))
-        try:
-            self.sock_obj.sendall(buffer)
-        except InterruptedError:
-            return False
+        
+        self.sock_obj.sendall(buffer)
     
     def send_file(self, path:str, buffer:int):
         file = open(path, "rb")
         
-        print(f"Transfering {path}")
         try:
             # Send the contents of the file in chunks based on buffer
             with mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mm:
@@ -61,6 +58,8 @@ class ASocket():
                     self.send_msg(mm[i:i+buffer])
         except ModuleNotFoundError or ValueError:
             print("mmap failed because of emtpy file, or it isn't installed")
+        except ConnectionResetError:
+            pass
         finally:
             file.close()
     
@@ -82,7 +81,10 @@ class ASocket():
         obj = pickle.loads(obj_bytes)
 
         return obj
-
+    
+    def kill(self, how:int | None=socket.SHUT_RDWR):
+        self.sock_obj.shutdown(how)
+        self.sock_obj.close()
 
 class AServer():
     manager = ThreadManager()
@@ -91,11 +93,19 @@ class AServer():
         self.host = host
         self.port = port
         self.handlers = handler_classes
+        
         self.terminate = threading.Event()
+        self.connections = []
         
         self.sock.timeout = timeout
         self.sock.bind((self.host, self.port))
-            
+    
+    def server_send_msg(self, obj):
+        self.sock.send_msg(obj)
+    
+    def server_recv_msg(self):
+        self.sock.recv_msg()
+     
     def activate(self, recieve:bool | None=False, backlog:int | None=0):
         self.sock.listen(backlog)
         if not recieve:
@@ -105,25 +115,30 @@ class AServer():
         comm_port.start()
     
     def recieve_connections(self):
-        print("Server awaiting connections")
+        logging.info("Server awaiting connections")
         while not self.terminate.is_set():
             try:
                 conn, addr = self.sock.accept()
                 # Spawn thread and handle
-                sock = ASocket(conn)
-                worker = threading.Thread(target=self.setup_connection, args=(sock, addr))
+                worker = threading.Thread(target=self.setup_connection, args=(conn, addr))
                 # Easy to stop newly spawned threads by using ThreadManager
                 self.manager.start(worker)
             except TimeoutError:
                 continue
-        print("Server has been shutdown")
+        logging.info("Server has been shutdown")
+        logging.debug("Server has been shutdown")
     
-    def setup_connection(self, sock:ASocket, addr):
+    def setup_connection(self, conn:socket.socket, addr):
+        self.connections.append(addr)
+        sock = ASocket(conn)
+        
+        logging.info(f"Connection established to {addr}")
+        logging.debug(f"Connection established to {addr}")
         recv_handler = sock.format_recv_msg()
         # Check if send handler name is in the tuple given to the AServer Class
         handler = other.compareObjectNameToString(self.handlers, recv_handler)
         if not handler:
-            self.stop_current(sock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
+            self.stop_current_worker(sock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
             
         self.serve_connection(sock, addr, handler)
     
@@ -135,15 +150,15 @@ class AServer():
         try:
             handler(sock, addr)
         # Checks if the connected maschine is still there
-        except ConnectionResetError as e:
-            self.stop_current(sock, f"{addr} has closed the connection")
+        except ConnectionResetError:
+            self.stop_current_worker(sock, f"{addr} has closed the connection")
     
-    def stop_current(self, sock:ASocket, local_msg:object | None="Something went wrong"):
+    def stop_current_worker(self, sock:ASocket, local_msg:object | None="Something went wrong", how:int | None=socket.SHUT_RDWR):
         """
         Shuts down current worker
         """
-        sock.sock_obj.close()
-        print(local_msg)
+        sock.kill(how)
+        logging.warn(local_msg)
         self.manager.stop_current() # Stops current worker
     
     def stop_worker(self, worker):
@@ -162,13 +177,17 @@ class AServer():
         """
         Shuts down entire server
         """
+        logging.info("Shutting down server...")
+        logging.debug("Shutting down server...")
         self.stop_all()
         self.terminate.set()
-    
-    @property
-    def active_workers(self):
-        return self.manager.thread_list
+        self.sock.kill()
+        
 
+class SecureServer(AServer):
+    def __init__(self, sock: ASocket, host: str, port: int, handler_classes: tuple | None = None, timeout: int | None = 5):
+        super().__init__(sock, host, port, handler_classes, timeout)
+    
 
 class AClient():
     def __init__(self, sock:ASocket, host, port, protocol_class):
@@ -178,9 +197,17 @@ class AClient():
         self.protocol = protocol_class
         
     def connect(self):
-        print("Attempting to connect")
+        logging.info("Attempting to connect...")
         self.sock.connect((self.host, self.port))
-        print("Connection Succesfull")
+        logging.info("Connection Succesfull!")
+    
+    def reconnect(self):
+        logging.warn("Reconnecting...")
+        while True:
+            try:
+                self.sock.connect((self.host, self.port))
+            except ConnectionRefusedError:
+                logging.error("Connection was refused...")
     
     def setup(self):
         self.sock.send_msg(obj=self.protocol.opposite_name(self.protocol.__name__))
@@ -189,5 +216,7 @@ class AClient():
         while True:
             try:
                 self.protocol(self.sock, self.host)
+            except ConnectionResetError:
+                self.reconnect()
             except ConnectionRefusedError:
                 continue

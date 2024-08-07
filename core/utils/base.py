@@ -28,6 +28,6 @@ class Base():
             end_name = f"{raw_name}Handler"
         if name.endswith("Handler"):
             raw_name = name.removesuffix("Handler")
-            end_name = f"{raw_name}Protocl"
+            end_name = f"{raw_name}Protocol"
         
         return end_name

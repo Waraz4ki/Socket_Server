@@ -6,7 +6,7 @@ import socket
 PORT = 60_000
 HOST = "192.168.56.1"
 
-Client = AClient(ASocket(), HOST, PORT, ChatProtocol)
+Client = AClient(ASocket(), HOST, PORT, ChatHandler)
 Client.connect()
 Client.setup()
 Client.handle()
