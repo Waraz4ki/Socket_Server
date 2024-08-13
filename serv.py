@@ -8,6 +8,6 @@ PORT = 60_000
 HOST = socket.gethostbyname(socket.gethostname())
 
 
-Server = AServer(ASocket(), HOST, PORT, [ChatHandler,FFTHandler, ChatProtocol, FFTProtocol])
-Server.activate()
+Server = AServer(ASocket(), HOST, PORT, [ChatHandler, FFTHandler, PlaceholderHandler, ChatProtocol, FFTProtocol, PlaceholderProtocol])
+Server.activate(backlog=2)
 Server.recieve_connections()

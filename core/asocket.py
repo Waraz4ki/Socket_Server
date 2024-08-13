@@ -22,6 +22,10 @@ class ASocket():
     PACK_FMT = "!i"
     PACK_SIZE = struct.calcsize(PACK_FMT)
     
+    DATA_TRANSMISSION = "DATA"
+    FINISH_TRANSMISSION = "FINISH"
+    
+    
     def __init__(self, sock:socket.socket | None=None):
         if sock:
             self.sock_obj = sock
@@ -41,11 +45,14 @@ class ASocket():
     def connect(self, address):
         self.sock_obj.connect(address)
     
-    def send_msg(self, obj:object | None=None):
+    def send_msg(self, obj:object | None=None, trans_type:str | None=DATA_TRANSMISSION):
         obj_bytes = pickle.dumps(obj)
         obj_len = struct.pack(ASocket.PACK_FMT, len(obj_bytes))
-        buffer = b''.join((obj_len, obj_bytes))
         
+        header = pickle.dumps(trans_type)
+        header_len = struct.pack(ASocket.PACK_FMT, len(header))
+        
+        buffer = b''.join((header_len, header, obj_len, obj_bytes))
         self.sock_obj.sendall(buffer)
     
     def send_file(self, path:str, buffer:int):
@@ -75,12 +82,17 @@ class ASocket():
         return b''.join(chunks)
     
     def format_recv_msg(self) -> object:
-        data = self.recv_msg()
-        obj_len = struct.unpack(self.PACK_FMT, data)[0]
-        obj_bytes = self.recv_msg(obj_len)
-        obj = pickle.loads(obj_bytes)
+        serialized_data = self.recv_msg()
+        header_len = struct.unpack(self.PACK_FMT, serialized_data)[0]
+        serialized_header = self.recv_msg(header_len)
+        header = pickle.loads(serialized_header)
+        
+        serialized_data = self.recv_msg()
+        obj_len = struct.unpack(self.PACK_FMT, serialized_data)[0]
+        serialized_obj = self.recv_msg(obj_len)
+        obj = pickle.loads(serialized_obj)
 
-        return obj
+        return header, obj
     
     def kill(self, how:int | None=socket.SHUT_RDWR):
         self.sock_obj.shutdown(how)
@@ -100,11 +112,11 @@ class AServer():
         self.sock.timeout = timeout
         self.sock.bind((self.host, self.port))
     
-    def server_send_msg(self, obj):
-        self.sock.send_msg(obj)
-    
-    def server_recv_msg(self):
-        self.sock.recv_msg()
+    #def server_send_msg(self, obj):
+    #    self.sock.send_msg(obj)
+    #
+    #def server_recv_msg(self):
+    #    self.sock.recv_msg()
      
     def activate(self, recieve:bool | None=False, backlog:int | None=0):
         self.sock.listen(backlog)
@@ -134,7 +146,7 @@ class AServer():
         
         logging.info(f"Connection established to {addr}")
         logging.debug(f"Connection established to {addr}")
-        recv_handler = sock.format_recv_msg()
+        header, recv_handler = sock.format_recv_msg()
         # Check if send handler name is in the tuple given to the AServer Class
         handler = other.compareObjectNameToString(self.handlers, recv_handler)
         if not handler:
@@ -152,6 +164,13 @@ class AServer():
         # Checks if the connected maschine is still there
         except ConnectionResetError:
             self.stop_current_worker(sock, f"{addr} has closed the connection")
+    
+    def share_connection(self, remote_address, conn):
+        connection_package = {
+            "conn":conn,
+            "data":None
+        }
+        self.sock.sock_obj.sendto(conn, remote_address)
     
     def stop_current_worker(self, sock:ASocket, local_msg:object | None="Something went wrong", how:int | None=socket.SHUT_RDWR):
         """
@@ -200,7 +219,7 @@ class AClient():
         logging.info("Attempting to connect...")
         self.sock.connect((self.host, self.port))
         logging.info("Connection Succesfull!")
-    
+        
     def reconnect(self):
         logging.warn("Reconnecting...")
         while True:
@@ -208,10 +227,10 @@ class AClient():
                 self.sock.connect((self.host, self.port))
             except ConnectionRefusedError:
                 logging.error("Connection was refused...")
-    
+                
     def setup(self):
         self.sock.send_msg(obj=self.protocol.opposite_name(self.protocol.__name__))
-    
+        
     def handle(self):
         while True:
             try:

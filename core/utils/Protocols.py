@@ -2,6 +2,9 @@ import os
 from pathlib import Path
 from core.utils.base import Base
 
+class PlaceholderProtocol(Base):
+    pass
+
 class ChatProtocol(Base):
     def handle(self):
         try:
@@ -10,8 +13,6 @@ class ChatProtocol(Base):
         except KeyboardInterrupt or EOFError:
             print("endin chat")
             return
-    def finish(self):
-        self.sock.kill()
 
 class FFTProtocol(Base):
     def setup(self):

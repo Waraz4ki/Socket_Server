@@ -1,11 +1,15 @@
 #from asocket import ASocket
 from core.utils.base import Base
 from os import path, makedirs
-    
+
+class PlaceholderHandler(Base):
+    pass
+
 class ChatHandler(Base):
     def handle(self):
-        data = self.sock.format_recv_msg()
-        print(f"{self.addr}: {data}")
+        header, data = self.sock.format_recv_msg()
+        if header == self.sock.DATA_TRANSMISSION:
+            print(f"{self.addr}: {data}")
 
 class FFTHandler(Base):
     def setup(self):
