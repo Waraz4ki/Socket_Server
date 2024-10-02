@@ -2,12 +2,10 @@ import socket
 import struct
 import pickle
 import threading
-import mmap
 import logging
 
 from core.utils.thread_manager import ThreadManager
-from core.utils.other import other
-
+from core.utils.other import compareObjectNameToString
 
 def create_socket(host):
     if len(host) > 15:
@@ -18,13 +16,13 @@ def create_socket(host):
     
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s',)
 
+
 class ASocket():
     PACK_FMT = "!i"
     PACK_SIZE = struct.calcsize(PACK_FMT)
     
     DATA_TRANSMISSION = "DATA"
     FINISH_TRANSMISSION = "FINISH"
-    
     
     def __init__(self, sock:socket.socket | None=None):
         if sock:
@@ -33,19 +31,7 @@ class ASocket():
             self.sock_obj = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
         self.timeout = self.sock_obj.timeout
     
-    def bind(self, address):
-        self.sock_obj.bind(address)
-        
-    def listen(self, backlog):
-        self.sock_obj.listen(backlog)
-    
-    def accept(self):
-        return self.sock_obj.accept()
-    
-    def connect(self, address):
-        self.sock_obj.connect(address)
-    
-    def send_msg(self, obj:object | None=None, trans_type:str | None=DATA_TRANSMISSION):
+    def send_msg(self, trans_type:str | None=DATA_TRANSMISSION, obj:object | None=None):
         obj_bytes = pickle.dumps(obj)
         obj_len = struct.pack(ASocket.PACK_FMT, len(obj_bytes))
         
@@ -54,21 +40,16 @@ class ASocket():
         
         buffer = b''.join((header_len, header, obj_len, obj_bytes))
         self.sock_obj.sendall(buffer)
-    
-    def send_file(self, path:str, buffer:int):
-        file = open(path, "rb")
         
-        try:
-            # Send the contents of the file in chunks based on buffer
-            with mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mm:
-                for i in range(0, mm.size(), buffer):
-                    self.send_msg(mm[i:i+buffer])
-        except ModuleNotFoundError or ValueError:
-            print("mmap failed because of emtpy file, or it isn't installed")
-        except ConnectionResetError:
-            pass
-        finally:
-            file.close()
+    def send_msg_to(self, host:str , port:int, obj:object | None=None, trans_type:str | None=DATA_TRANSMISSION):
+        obj_bytes = pickle.dumps(obj)
+        obj_len = struct.pack(ASocket.PACK_FMT, len(obj_bytes))
+        
+        header = pickle.dumps(trans_type)
+        header_len = struct.pack(ASocket.PACK_FMT, len(header))
+        
+        buffer = b''.join((header_len, header, obj_len, obj_bytes))
+        self.sock_obj.sendto(buffer, (host, port))
     
     def recv_msg(self, n:float | None=PACK_SIZE) -> bytes:
         chunks = []
@@ -98,9 +79,47 @@ class ASocket():
         self.sock_obj.shutdown(how)
         self.sock_obj.close()
 
+
+class Connection_Framework(ASocket):
+    CONNECTION_SHARE = "SHARE_CONN"
+    HANDLER_AUTH_TRANSMISSION = "HANDLER_AUTH"
+    
+    def __init__(self, sock: socket.socket | None = None):
+        super().__init__(sock)
+    
+    def bind(self, address):
+        self.sock_obj.bind(address)
+        
+    def listen(self, backlog):
+        self.sock_obj.listen(backlog)
+    
+    def accept(self):
+        return self.sock_obj.accept()
+    
+    def connect(self, address):
+        self.sock_obj.connect(address)
+
+    
+    def format_recv_msg(self) -> object:
+        serialized_data = self.recv_msg()
+        header_len = struct.unpack(self.PACK_FMT, serialized_data)[0]
+        serialized_header = self.recv_msg(header_len)
+        header = pickle.loads(serialized_header)
+        
+        serialized_data = self.recv_msg()
+        obj_len = struct.unpack(self.PACK_FMT, serialized_data)[0]
+        serialized_obj = self.recv_msg(obj_len)
+        obj = pickle.loads(serialized_obj)
+
+        if header == self.HANDLER_AUTH_TRANSMISSION:
+            raise ReferenceError(header, obj)
+        
+        return header, obj
+
 class AServer():
     manager = ThreadManager()
-    def __init__(self, sock:ASocket, host:str, port:int, handler_classes:tuple | None=None, timeout:int | None=5):
+    
+    def __init__(self, sock:Connection_Framework, host:str, port:int, handler_classes:tuple | None=None):
         self.sock = sock
         self.host = host
         self.port = port
@@ -109,14 +128,7 @@ class AServer():
         self.terminate = threading.Event()
         self.connections = []
         
-        self.sock.timeout = timeout
         self.sock.bind((self.host, self.port))
-    
-    #def server_send_msg(self, obj):
-    #    self.sock.send_msg(obj)
-    #
-    #def server_recv_msg(self):
-    #    self.sock.recv_msg()
      
     def activate(self, recieve:bool | None=False, backlog:int | None=0):
         self.sock.listen(backlog)
@@ -148,29 +160,28 @@ class AServer():
         logging.debug(f"Connection established to {addr}")
         header, recv_handler = sock.format_recv_msg()
         # Check if send handler name is in the tuple given to the AServer Class
-        handler = other.compareObjectNameToString(self.handlers, recv_handler)
-        if not handler:
+        handler = compareObjectNameToString(self.handlers, recv_handler)
+        if not handler or header != self.sock.HANDLER_AUTH_TRANSMISSION:
             self.stop_current_worker(sock, f"Frocibly closing connection to {addr}: Specified handler does not exist")
             
         self.serve_connection(sock, addr, handler)
     
     @manager.thread_loop
-    def serve_connection(self, sock:ASocket, addr, handler):
+    def serve_connection(self, sock:Connection_Framework, addr, handler):
         """
         Serve a connection
         """
+        
         try:
             handler(sock, addr)
-        # Checks if the connected maschine is still there
+        # Checks if the connected maschine is still there  
         except ConnectionResetError:
             self.stop_current_worker(sock, f"{addr} has closed the connection")
     
-    def share_connection(self, remote_address, conn):
-        connection_package = {
-            "conn":conn,
-            "data":None
-        }
-        self.sock.sock_obj.sendto(conn, remote_address)
+    def transfer_connection(self, remote_host, remote_port, conn:Connection_Framework):
+        logging.info("Transfering connection...")
+        conn.send_msg(self.sock.HANDLER_AUTH_TRANSMISSION, (remote_host, remote_port))
+        logging.info("Success!")
     
     def stop_current_worker(self, sock:ASocket, local_msg:object | None="Something went wrong", how:int | None=socket.SHUT_RDWR):
         """
@@ -201,15 +212,9 @@ class AServer():
         self.stop_all()
         self.terminate.set()
         self.sock.kill()
-        
-
-class SecureServer(AServer):
-    def __init__(self, sock: ASocket, host: str, port: int, handler_classes: tuple | None = None, timeout: int | None = 5):
-        super().__init__(sock, host, port, handler_classes, timeout)
-    
 
 class AClient():
-    def __init__(self, sock:ASocket, host, port, protocol_class):
+    def __init__(self, sock:Connection_Framework, host, port, protocol_class):
         self.sock = sock
         self.host = host
         self.port = port
@@ -221,21 +226,47 @@ class AClient():
         logging.info("Connection Succesfull!")
         
     def reconnect(self):
-        logging.warn("Reconnecting...")
+        logging.warning("Reconnecting...")
         while True:
             try:
                 self.sock.connect((self.host, self.port))
             except ConnectionRefusedError:
                 logging.error("Connection was refused...")
-                
+        
+    def change_connection(self, host, port):
+        self.disconnect()
+        
+        self.host = host
+        self.port = port
+        
+        logging.info("Changing connection...")
+        self.sock.connect((self.host, self.port))
+        logging.info("Change succesfull!")
+    
     def setup(self):
-        self.sock.send_msg(obj=self.protocol.opposite_name(self.protocol.__name__))
+        self.sock.send_msg(self.sock.HANDLER_AUTH_TRANSMISSION, self.protocol.opposite_name(self.protocol.__name__))
         
     def handle(self):
         while True:
             try:
                 self.protocol(self.sock, self.host)
+            
+            except ReferenceError as transfer_data:
+                print("wda")
+                print(transfer_data.args[1])
+                transfer_header = transfer_data.args[0]
+                transfer_content = transfer_data.args[1]
+                self.change_connection(transfer_content[0], transfer_content[1])
+            
             except ConnectionResetError:
                 self.reconnect()
             except ConnectionRefusedError:
                 continue
+    
+    def disconnect(self):
+        """
+        Close current socket and create a new one\n
+        New socket is directly applied to local socket
+        """
+        self.sock.sock_obj.close()
+        self.sock = Connection_Framework()

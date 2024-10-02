@@ -31,3 +31,19 @@ class Base():
             end_name = f"{raw_name}Protocol"
         
         return end_name
+    
+    
+    #def send_file(self, path:str, buffer:int):
+    #    file = open(path, "rb")
+    #    
+    #    try:
+    #        # Send the contents of the file in chunks based on buffer
+    #        with mmap.mmap(file.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+    #            for i in range(0, mm.size(), buffer):
+    #                self.send_msg(mm[i:i+buffer])
+    #    except ModuleNotFoundError or ValueError:
+    #        print("mmap failed because of emtpy file, or it isn't installed")
+    #    except ConnectionResetError:
+    #        pass
+    #    finally:
+    #        file.close()

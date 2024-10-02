@@ -3,7 +3,8 @@ from pathlib import Path
 from core.utils.base import Base
 
 class PlaceholderProtocol(Base):
-    pass
+    def handle(self):
+        self.sock.format_recv_msg()
 
 class ChatProtocol(Base):
     def handle(self):

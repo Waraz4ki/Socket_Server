@@ -1,3 +1,4 @@
+
 def compareObjectNameToString(iterable:list, name:str):
     """
     Returns the object in the list that equals the name if one exists, else it returns False
